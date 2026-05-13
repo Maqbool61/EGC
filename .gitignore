@@ -1,188 +1,314 @@
 # =========================================================
-# Python
+# EGC — ULTIMATE .GITIGNORE
+# Everything Gemini Core Runtime Protection Layer
 # =========================================================
 
+# =========================================================
+# DEPENDENCIES
+# =========================================================
+node_modules/
+bower_components/
+jspm_packages/
+vendor/
+
+# =========================================================
+# PYTHON
+# =========================================================
 __pycache__/
-*.py[cod]
-*$py.class
+*.pyc
+*.pyo
+*.pyd
 *.so
-
-# Python tooling
-
+.python-version
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
-.pyre/
-.hypothesis/
 .tox/
 .nox/
-
-# Coverage
-
+coverage/
+htmlcov/
 .coverage
 .coverage.*
-htmlcov/
-
-# =========================================================
-# Build / Packaging
-# =========================================================
-
-build/
-dist/
-site/
-.eggs/
-*.egg
-*.egg-info/
 pip-wheel-metadata/
 
 # =========================================================
-# Virtual Environments
+# VIRTUAL ENVIRONMENTS
 # =========================================================
-
 .venv/
 venv/
 env/
 ENV/
 
 # =========================================================
-# Environment Variables & Secrets
+# BUILD / DIST
 # =========================================================
-
-.env
-.env.*
-!.env.example
-
-# Sensitive credentials
-
-credentials.json
-secrets.json
-service-account.json
-*.pem
-*.key
-*.crt
-
-# AI / API Keys
-
-google_credentials.json
-gemini_credentials.json
-openai_credentials.json
-
-# =========================================================
-# Logs
-# =========================================================
-
-*.log
-logs/
-*.out
-*.err
-
-# =========================================================
-# Runtime / Temporary
-# =========================================================
-
+dist/
+build/
+out/
+release/
+target/
 tmp/
 temp/
-.cache/
-
-# Session/runtime artifacts
-
-.sessions/
-sessions/
-.runtime/
-.checkpoints/
-.snapshots/
-.state/
-.memory/
-.context/
-
-# Orchestration / agent runtime
-
-orchestrator-state/
-agent-state/
-workflow-state/
-runtime-data/
-execution-cache/
 
 # =========================================================
-# SQLite / Local DB
+# LOGS
 # =========================================================
-
-*.db
-*.sqlite
-*.sqlite3
-
-# =========================================================
-# Node.js
-# =========================================================
-
-node_modules/
-.next/
-.nuxt/
-dist-ssr/
-coverage/
-
+*.log
+logs/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# Yarn Berry
+# =========================================================
+# ENVIRONMENT / SECRETS / TOKENS
+# =========================================================
+.env
+.env.*
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 
-.yarn/cache/
-.yarn/unplugged/
-.yarn/build-state.yml
-.yarn/install-state.gz
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
 
-# KEEP LOCAL YARN RELEASES VERSIONED
-
-!.yarn/releases/
+secrets/
+credentials/
+tokens/
+auth/
+apikeys/
+keys/
 
 # =========================================================
-# IDE / Editor
+# IDE / EDITORS
 # =========================================================
-
 .vscode/
 .idea/
-
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
 *.swp
 *.swo
-*~
-
-.history/
-
-# Cursor / Claude / AI IDE local state
-
-.cursor/cache/
-.cursor/index/
+*.kate-swp
+*.code-workspace
 
 # =========================================================
-# OS
+# OPERATING SYSTEM
 # =========================================================
-
 .DS_Store
 Thumbs.db
+desktop.ini
 
 # =========================================================
-# Optional Local Runtime Artifacts
+# TESTS / COVERAGE / QA
 # =========================================================
-
-*.runtime
-*.trace
-*.pid
-*.lock
-
-# =========================================================
-# Testing / Debug
-# =========================================================
-
+coverage/
+.nyc_output/
 playwright-report/
 test-results/
 pytestdebug.log
 
 # =========================================================
-# Misc
+# TEMPORARY FILES
 # =========================================================
-
-*.bak
 *.tmp
 *.temp
+*.bak
+*.backup
+*.old
+*.orig
+*.rej
+
+# =========================================================
+# DO NOT UPLOAD PRIVATE RUNTIME
+# =========================================================
+recovery_snapshot_egc/
+recovery_final_egc/
+contamination_backup/
+semantic_batches/
+research/
+contexts/
+cache/
+runtime/
+sessions/
+memory/
+state/
+
+# =========================================================
+# AI / AGENT RUNTIME
+# =========================================================
+.ai/
+.claude/
+.gemini/
+.cursor/
+.codex/
+.openai/
+.anthropic/
+.mcp/
+agents-runtime/
+runtime-cache/
+runtime_state/
+
+# =========================================================
+# COGNITIVE / FORENSIC OUTPUTS
+# =========================================================
+*_REPORT.md
+*_MAP.md
+*_ANALYSIS.md
+*_TRACE.md
+*_FORENSICS.md
+*_TOPOLOGY.md
+*_INDEX.md
+*_GRAPH.md
+*_DENSITY.md
+*_SURVIVABILITY*.md
+*_SEMANTIC*.md
+*_COGNITIVE*.md
+*_HOTSPOTS*.md
+*_BINDINGS*.md
+*_CASCADE*.md
+*_INJECTION*.md
+*_ORCHESTRATION*.md
+
+# =========================================================
+# GENERATED OUTPUTS
+# =========================================================
+search_results.txt
+test_full_output.log
+full_file_manifest.txt
+full_file_manifest_v2.txt
+TREE_FINAL.txt
+batch_*_skills.txt
+batch_*_skills_results.json
+
+# =========================================================
+# SNAPSHOTS / BACKUPS / TAR FILES
+# =========================================================
+backups/
+snapshots/
+*.tar
+*.tar.gz
+*.zip
+*.7z
+
+# =========================================================
+# DATABASES
+# =========================================================
+*.sqlite
+*.sqlite3
+*.db
+
+# =========================================================
+# LOCAL MCP / TOOLING
+# =========================================================
+mcp-configs/local/
+tool-outputs/
+local-runtime/
+sandbox/
+
+# =========================================================
+# CLAUDE / GEMINI / CODEX ARTIFACTS
+# =========================================================
+.claude-cache/
+.gemini-cache/
+.codex-cache/
+.ai-cache/
+.ai-history/
+.ai-traces/
+
+# =========================================================
+# CRAWLERS / SCRAPERS / INDEXERS OUTPUTS
+# =========================================================
+crawler_output/
+scraper_output/
+semantic_output/
+index_output/
+generated_indexes/
+
+# =========================================================
+# SECURITY / FORENSICS
+# =========================================================
+forensics/
+quarantine/
+incident_reports/
+security_dumps/
+
+# =========================================================
+# LARGE GENERATED DOCUMENTATION
+# =========================================================
+docs/generated/
+docs/runtime/
+docs/reports/
+docs/forensics/
+docs/tmp/
+
+# =========================================================
+# PRIVATE AI DOCUMENTS
+# =========================================================
+CLAUDE.md
+claude.md
+GEMINI_PRIVATE.md
+OPENAI_INTERNAL.md
+
+# =========================================================
+# OPTIONAL — IGNORE ENTIRE AGENT / SKILL ECOSYSTEM
+# Uncomment if desired
+# =========================================================
+# agents/
+# skills/
+
+# =========================================================
+# KEEP IMPORTANT FILES
+# =========================================================
+!package-lock.json
+!yarn.lock
+!pnpm-lock.yaml
+!requirements.txt
+!pyproject.toml
+!README.md
+!README.zh-CN.md
+!LICENSE
+
+# =========================================================
+# KEEP CORE DOCUMENTATION
+# =========================================================
+!docs/
+!docs/**/*.md
+
+# =========================================================
+# KEEP SOURCE CODE
+# =========================================================
+!src/
+!src/**
+
+# =========================================================
+# KEEP TESTS
+# =========================================================
+!tests/
+!tests/**
+
+# =========================================================
+# KEEP CONFIGURATION FILES
+# =========================================================
+!.gitignore
+!.gitattributes
+!.editorconfig
+!.prettierrc
+!.eslintrc*
+!tsconfig.json
+
+# =========================================================
+# KEEP INSTALLERS / ENTRYPOINTS
+# =========================================================
+!install.sh
+!run.sh
+!startup.py
+
+# =========================================================
+# END
+# =========================================================
