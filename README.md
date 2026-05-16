@@ -2,7 +2,7 @@
 
 ![Everything Gemini Code — the performance system for AI agent harnesses](assets/hero.png)
 
-[![Version](https://img.shields.io/badge/version-v2.0.0--rc.1-blue.svg?style=flat-square)]() [![License](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](LICENSE) [![Status](https://img.shields.io/badge/status-Production%20Candidate-2ea44f.svg?style=flat-square)]() [![Runtime](https://img.shields.io/badge/runtime-Hardened-2ea44f.svg?style=flat-square)]() [![Platform](https://img.shields.io/badge/platform-Cross--Platform-blue.svg?style=flat-square)]()
+[![Version](https://img.shields.io/badge/version-v1.0.0-blue.svg?style=flat-square)]() [![License](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](LICENSE) [![Status](https://img.shields.io/badge/status-Production%20Candidate-2ea44f.svg?style=flat-square)]() [![Runtime](https://img.shields.io/badge/runtime-Hardened-2ea44f.svg?style=flat-square)]() [![Platform](https://img.shields.io/badge/platform-Cross--Platform-blue.svg?style=flat-square)]()
 [![Gemini Native](https://img.shields.io/badge/engine-Gemini%20Native-1a73e8.svg?style=flat-square)]() [![Claude Bridge](https://img.shields.io/badge/bridge-Claude-d97757.svg?style=flat-square)]() [![OpenAI Bridge](https://img.shields.io/badge/bridge-OpenAI-412991.svg?style=flat-square)]() [![Routing](https://img.shields.io/badge/routing-Multi--Provider-8a2be2.svg?style=flat-square)]()
 [![Python](https://img.shields.io/badge/-Python%203.10+-3776AB?style=flat-square&logo=python&logoColor=white)]() [![TypeScript](https://img.shields.io/badge/-TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white)]() [![Tkinter](https://img.shields.io/badge/-Tkinter%20GUI-4B8BBE?style=flat-square&logo=python&logoColor=white)]() [![SQLite](https://img.shields.io/badge/-SQLite-003B57?style=flat-square&logo=sqlite&logoColor=white)]() [![Linux](https://img.shields.io/badge/-Linux-FCC624?style=flat-square&logo=linux&logoColor=black)]() [![Windows](https://img.shields.io/badge/-Windows-0078D6?style=flat-square&logo=windows&logoColor=white)]() [![macOS](https://img.shields.io/badge/-macOS-000000?style=flat-square&logo=apple&logoColor=white)]() [![Execution Queue](https://img.shields.io/badge/architecture-Execution%20Queue-orange.svg?style=flat-square)]() [![Memory Mesh](https://img.shields.io/badge/architecture-Memory%20Mesh-orange.svg?style=flat-square)]() [![Agent Orchestration](https://img.shields.io/badge/architecture-Agent%20Orchestration-orange.svg?style=flat-square)]()
 
@@ -36,12 +36,12 @@ Not just configs. EGC is a massive, production-grade system: skills, memory opti
 
 | Pillar | Description |
 |--------|-------------|
-| **Gemini-Native Engine** | Built from the ground up for Gemini Code, with fallback bridges for Claude and OpenAI. |
+| **Gemini-Native Engine** | Built from the ground up for Gemini Code, with optional bridges for Claude, OpenAI, OpenRouter, and Ollama. |
 | **Control Plane GUI** | A Tkinter-based dashboard for real-time observability of your agentic workforce. |
-| **Agent Orchestration** | 48+ highly specialized cognitive agents ready to execute complex sub-tasks. |
-| **Skills System** | 182+ domain-specific workflows covering frontend, backend, security, and deployment. |
+| **Agent Orchestration** | 62 highly specialized cognitive agents ready to execute complex sub-tasks. |
+| **Skills System** | 228 domain-specific workflows organized in 14 categories (ai, backend, frontend, security, devops, ...). |
 | **Dynamic ModelResolver** | Never hardcode a model again. EGC routes to the most capable model based on the task. |
-| **Cross-Platform** | Engineered to run seamlessly on Linux, Windows, and macOS. |
+| **Cross-Platform** | Runs on Linux and macOS today. Windows support is best-effort and relies on Git Bash / WSL for hook execution. |
 
 ---
 
@@ -127,52 +127,69 @@ git clone https://github.com/Fmarzochi/everything-gemini.git
 cd everything-gemini
 ```
 
-### Phase 3: Virtual Environment (Dependency Isolation)
+### Phase 3: Virtual Environment (Python Isolation)
 
 **What is a Virtual Environment?**
 A virtual environment (`venv`) acts as a dedicated sandbox for EGC. It ensures that the Python packages EGC needs don't interfere with your computer's global system files, and keeps your installation clean and isolated.
-
-**Why use it?**
-If you ever need to uninstall EGC or fix a dependency issue, the virtual environment prevents any risk of breaking other Python projects on your machine.
 
 **Create and Activate the Environment:**
 
 *   **Linux / macOS:**
     ```bash
-    # Create the sandbox
     python3 -m venv .venv
-    
-    # Activate it (You must do this every time you open a new terminal for EGC)
     source .venv/bin/activate
-    
-    # Install any potential dependencies (if requirements exist)
-    pip install -r requirements.txt || true
+
+    # Base install (Pydantic + dispatcher). Required.
+    pip install -r requirements.txt
+
+    # Optional: add the Gemini SDK (only if you have a GEMINI_API_KEY).
+    pip install -e .[gemini]
+    # For other providers: pip install -e .[claude] / .[openai] / .[all]
     ```
 
 *   **Windows:**
     ```powershell
-    # Create the sandbox
     python -m venv .venv
-    
-    # Activate it (You must do this every time you open a new terminal for EGC)
     .\.venv\Scripts\activate
-    
-    # Install any potential dependencies
-    pip install -r requirements.txt || true
+
+    pip install -r requirements.txt
+    pip install -e .[gemini]   # optional
     ```
 
 *(Note: When active, you should see `(.venv)` prefixing your terminal prompt.)*
 
-### Phase 4: First Boot (The Dashboard)
+### Phase 4: Node Dependencies (State-Store + Hooks)
 
-EGC is visual. You don't need to memorize commands to start exploring. Ensure your virtual environment is active (from Phase 3), then run:
+EGC's state-store (SQLite) and the hook runtime require a few Node.js packages.
+Run this once inside the project root:
+
+```bash
+npm install
+```
+
+This installs `sql.js`, `ajv`, `argparse`, and `js-yaml` into `node_modules/`.
+Without this step, the SQLite state-store and hook validators cannot run.
+
+### Phase 5: Bootstrap State Database
+
+Initialize the local SQLite state-store (idempotent — safe to re-run):
+
+```bash
+node scripts/bootstrap-state-db.js
+```
+
+This creates `~/.gemini/egc/state.db` and applies all schema migrations.
+
+### Phase 6: First Boot (The Dashboard)
+
+EGC is visual. Ensure your virtual environment is active, then run:
 
 ```bash
 # Run the Control Plane Dashboard
 python3 egc_dashboard.py
 ```
 
-*Note for Windows users:* If `python3` doesn't work, try typing `python egc_dashboard.py`.
+*Note for Windows users:* If `python3` doesn't work, try `python egc_dashboard.py`.
 
 The EGC Dashboard will open. From here, you can browse every Agent, Skill, Command, and Rule installed on the system, and monitor live execution logs.
 
@@ -197,21 +214,28 @@ Inside the interactive prompt, you can call EGC commands:
 
 ## 🌐 Cross-Platform Support
 
-EGC is rigorously tested across all major operating systems.
+EGC is developed and tested primarily on Linux. macOS works without changes. Windows
+support is best-effort and depends on which subsystem you use.
 
-### Windows
-*   **Execution:** Use PowerShell or Command Prompt.
-*   **UI:** The Tkinter dashboard works natively without X11 servers.
-*   **Paths:** EGC automatically handles Windows `\` path separators internally.
-
-### Linux (Ubuntu/Debian/Arch)
+### Linux (Ubuntu/Debian/Arch) — ✅ Primary target
 *   **Execution:** Standard bash or zsh.
 *   **UI:** Ensure you have Tkinter installed (`sudo apt install python3-tk`).
 *   **Paths:** Native Unix paths `/`.
 
-### macOS
+### macOS — ✅ Supported (Unix-like)
 *   **Execution:** zsh (default) or bash.
 *   **UI:** macOS includes Tkinter with its standard Python distributions.
+
+### Windows — ⚠️ Best-effort (use WSL or Git Bash)
+*   **Recommended:** Run EGC inside WSL2 (Ubuntu) — gives you a real Linux environment.
+*   **Alternative:** Git Bash for the install scripts; Python and Node CLIs work
+    from PowerShell/Command Prompt.
+*   **Limitation:** Several lifecycle hooks ship as POSIX shell scripts (`*.sh`),
+    so plain PowerShell will skip those hooks even though the dispatcher itself
+    runs. The core dashboard and CLI commands work, but the full hook pipeline
+    is degraded.
+*   **Paths:** EGC normalizes paths internally via Node's `path` module, but
+    embedded shell snippets assume a POSIX shell is available.
 
 ---
 
