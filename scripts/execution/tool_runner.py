@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import sys
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 import subprocess
@@ -17,9 +18,9 @@ class ExecutionResult:
 
 # Strict command allowlist
 ALLOWED_COMMANDS = {
-    "python": ["python3", "pytest"],
+    "python": ["python3", "python", sys.executable, "pytest"],
     "git": ["git"],
-    "npm": ["npm", "yarn"]
+    "npm": ["npm", "yarn", "node"]
 }
 
 async def run_command(cmd: List[str], timeout: int = 30, env: Optional[Dict[str, str]] = None) -> ExecutionResult:

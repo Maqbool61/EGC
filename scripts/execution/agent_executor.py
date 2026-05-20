@@ -1,5 +1,6 @@
 import logging
 import os
+import sys
 
 from execution.agent_loader import AgentLoader
 from execution.tool_runner import run_command
@@ -32,5 +33,5 @@ class AgentExecutor:
         self.logger.info(f"Starting agent {agent_id} execution from {agent_path}")
 
         env = _build_runtime_env(self.workspace_root, agent_id)
-        cmd = ["python3", "-m", "llm.cli.prompt", "-p", prompt]
+        cmd = [sys.executable, "-m", "llm.cli.prompt", "-p", prompt]
         return await run_command(cmd, timeout=timeout, env=env)

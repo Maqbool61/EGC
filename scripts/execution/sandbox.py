@@ -1,10 +1,11 @@
 import os
+import sys
 from dataclasses import dataclass, field
 from typing import List, Set
 
 @dataclass
 class SandboxPolicy:
-    allowed_commands: Set[str] = field(default_factory=lambda: {"python3", "pytest", "git", "npm", "node"})
+    allowed_commands: Set[str] = field(default_factory=lambda: {"python3", "python", sys.executable, "pytest", "git", "npm", "node"})
     blocked_commands: Set[str] = field(default_factory=lambda: {"rm", "sudo", "mkfs", "dd", "shutdown", "reboot", "chmod"})
     allowed_dirs: List[str] = field(default_factory=lambda: ["scripts/", "tests/", "commands/", "skills/", "agents/"])
 

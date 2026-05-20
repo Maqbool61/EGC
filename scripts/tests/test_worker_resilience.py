@@ -17,7 +17,7 @@ async def test_worker_recovery():
     await eq.enqueue("fail-task", "fail", ["invalid-cmd"], root, "s1")
     
     # 2. Enqueue subsequent valid task to verify recovery
-    await eq.enqueue("ok-task", "ok", ["python3", "--version"], root, "s1")
+    await eq.enqueue("ok-task", "ok", [sys.executable, "--version"], root, "s1")
         
     await eq.queue.join()
     await eq.shutdown()

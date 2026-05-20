@@ -13,7 +13,7 @@ async def run_stress_test():
     
     start = time.time()
     for i in range(100):
-        await eq.enqueue(f'task-{i}', 'stress', ['python3', '-c', 'import time; time.sleep(0.02)'], os.getcwd(), 's1')
+        await eq.enqueue(f'task-{i}', 'stress', [sys.executable, '-c', 'import time; time.sleep(0.02)'], os.getcwd(), 's1')
         
     await eq.queue.join()
     await eq.shutdown()

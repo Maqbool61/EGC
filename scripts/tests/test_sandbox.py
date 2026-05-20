@@ -11,7 +11,7 @@ def test_sandbox():
     print("--- Running Sandbox Tests ---")
     
     # 1. Valid
-    res1 = sb.validate_execution(["python3", "--version"], os.path.join(root, "scripts"))
+    res1 = sb.validate_execution([sys.executable, "--version"], os.path.join(root, "scripts"))
     if not res1.is_valid:
         print(f"Debug: {res1.reason}")
     print(f"Test 1 (Valid): {'PASS' if res1.is_valid else 'FAIL'}")
@@ -21,7 +21,7 @@ def test_sandbox():
     print(f"Test 2 (Blocked Cmd): {'PASS' if not res2.is_valid else 'FAIL'}")
     
     # 3. Blocked dir
-    res3 = sb.validate_execution(["python3", "-c", "print(1)"], "/etc")
+    res3 = sb.validate_execution([sys.executable, "-c", "print(1)"], "/etc")
     print(f"Test 3 (Blocked Dir): {'PASS' if not res3.is_valid else 'FAIL'}")
 
 if __name__ == "__main__":

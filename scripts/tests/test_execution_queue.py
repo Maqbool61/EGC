@@ -15,9 +15,9 @@ async def test_queue():
     
     # 1. Enqueue multiple tasks
     tasks = [
-        ("task1", ["python3", "--version"], root, "s1"),
-        ("task2", ["python3", "-c", "import time; time.sleep(0.5); print('done')"], root, "s1"),
-        ("task3", ["python3", "--version"], root, "s1")
+        ("task1", [sys.executable, "--version"], root, "s1"),
+        ("task2", [sys.executable, "-c", "import time; time.sleep(0.5); print('done')"], root, "s1"),
+        ("task3", [sys.executable, "--version"], root, "s1")
     ]
     
     for t in tasks:

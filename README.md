@@ -75,19 +75,37 @@ AI code assistants often degrade into confusing text files and fragmented comman
 
 ---
 
-## 🏗️ Architecture Overview
+## 🏗️ Architecture Overview (Consolidation State)
 
-EGC is divided into three primary layers:
+EGC is divided into three primary layers, with specific canonical paths currently undergoing surgical consolidation:
 
 1.  **The Cognitive Layer (Agents & Skills)**
     *   **Agents:** The "who". Specialized personas (e.g., `security-reviewer`, `code-architect`) that handle distinct domains.
     *   **Skills:** The "how". Standardized operating procedures (e.g., `django-tdd`, `react-accessibility`) that guide agents to success without hallucinations.
-2.  **The Runtime Engine (Orchestrators & Queue)**
-    *   **Execution Queue:** Manages task dependencies, preventing race conditions and ensuring deterministic outcomes.
-    *   **Memory Mesh:** Context is preserved across sessions. Agents don't forget what was discussed 3 hours ago.
-    *   **ModelResolver:** Intelligently selects the best model size (Flash vs. Pro) based on the current workload's token budget and complexity.
+2.  **The Runtime Engine (Orchestrators)**
+    *   **Canonical Execution Core (`src/llm/`):** The absolute truth for runtime execution and model routing.
+    *   **ExecutionOrchestrator:** The canonical orchestration runtime for agent execution.
+    *   **Activation Pipeline (`manifests/install-modules.json`):** The authoritative source of truth for runtime hydration and capability pipeline.
+    *   *(Dormant/Legacy Systems)*: `Execution Queue`, `session_manager`, `session_bridge`, and partial registry surfaces like `internal/registry/runtime-map.json` are currently dormant or diverging from the canonical pipeline and are marked for reduction or consolidation.
 3.  **The Control Plane (Dashboard)**
     *   **`egc_dashboard.py`:** A zero-dependency, cross-platform Tkinter GUI that provides a window into the otherwise invisible AI execution loop.
+
+---
+
+## 🚦 Runtime Liveness & Activation Pipeline (Consolidation Notes)
+
+To provide an accurate picture of the EGC runtime, note the following liveness states and canonical paths:
+
+*   **Canonical Runtime Core:** `src/llm/` is the canonical path for LLM execution and ReAct orchestration.
+*   **Activation Pipeline Truth:** `manifests/install-modules.json` is the actual source of truth for the activation and hydration pipeline (what gets loaded into the harnessed platforms).
+*   **Registry Divergence:** The file `internal/registry/runtime-map.json` is considered a legacy/partial registry surface and diverges from `install-modules.json`.
+*   **Dormant Systems:** Several systems are currently dormant and pending surgical consolidation or reduction. These include:
+    *   `profiler.py`
+    *   `session_bridge`
+    *   `ExecutionQueue`
+    *   `egc_orchestrate_cli.py`
+    *   `live_execution_test.py`
+    *   `session_manager`
 
 ---
 

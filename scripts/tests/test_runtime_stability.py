@@ -11,7 +11,7 @@ async def test_stress():
     eq = ExecutionQueue(root, concurrency=5)
     await eq.start()
     
-    tasks = [("stress", ["python3", "-c", "import time; time.sleep(0.1)"], root, "s1") for _ in range(20)]
+    tasks = [("stress", [sys.executable, "-c", "import time; time.sleep(0.1)"], root, "s1") for _ in range(20)]
     for t in tasks:
         await eq.enqueue("task_id", *t)
         
