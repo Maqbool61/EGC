@@ -1,6 +1,6 @@
 {
   "name": "everything-gemini",
-  "version": "1.0.0",
+  "version": "0.9.0",
   "description": "Battle-tested Gemini Code plugin for engineering teams — 62 agents, 228 skills, 74 commands, production-ready hooks, and selective install workflows evolved through continuous real-world use",
   "author": {
     "name": "Felipe Marzochi",
