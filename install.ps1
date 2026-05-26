@@ -1,6 +1,14 @@
 $ErrorActionPreference = "Stop"
 
 $RootDir = $PSScriptRoot
+$EgcScript = Join-Path $RootDir "scripts" "egc.js"
+$EgcInstall = Join-Path $RootDir "scripts" "install-apply.js"
+
+# Forward --help directly to the Node installer
+if ($args -contains '--help') {
+    node $EgcInstall @args
+    exit $LASTEXITCODE
+}
 
 Write-Host "EGC install"
 
@@ -17,63 +25,53 @@ try {
     exit 1
 }
 
-# Root dependencies
-Write-Host "  installing root dependencies..."
-Set-Location -Path $RootDir
-npm install --silent
+$DryRun = $args -contains '--dry-run'
 
-# egc-guardian
-Write-Host "  building egc-guardian..."
-$GuardianDir = Join-Path $RootDir "mcp\servers\egc-guardian"
-if (-Not (Test-Path $GuardianDir)) {
-    Write-Error "Not found: $GuardianDir"
-    exit 1
-}
-Set-Location -Path $GuardianDir
-npm install --silent
-npm run build
+if (-not $DryRun) {
+    # Root dependencies
+    Write-Host "  installing root dependencies..."
+    Set-Location -Path $RootDir
+    npm install --silent
 
-# egc-memory
-Write-Host "  building egc-memory..."
-$MemoryDir = Join-Path $RootDir "mcp\servers\egc-memory"
-if (-Not (Test-Path $MemoryDir)) {
-    Write-Error "Not found: $MemoryDir"
-    exit 1
-}
-Set-Location -Path $MemoryDir
-npm install --silent
-npm run build
-
-# Initialize database
-Write-Host "  initializing database..."
-Set-Location -Path $RootDir
-node scripts\egc.js init
-
-# Write harness config template
-$GuardianBuild = Join-Path $RootDir "mcp\servers\egc-guardian\build\index.js"
-$MemoryBuild = Join-Path $RootDir "mcp\servers\egc-memory\build\index.js"
-
-$mcpConfig = @{
-    mcpServers = @{
-        "egc-guardian" = @{
-            command = "node"
-            args = @($GuardianBuild)
-        }
-        "egc-memory" = @{
-            command = "node"
-            args = @($MemoryBuild)
-        }
+    # egc-guardian
+    Write-Host "  building egc-guardian..."
+    $GuardianDir = Join-Path $RootDir "mcp" "servers" "egc-guardian"
+    if (-Not (Test-Path $GuardianDir)) {
+        Write-Error "Not found: $GuardianDir"
+        exit 1
     }
-} | ConvertTo-Json -Depth 4
+    Set-Location -Path $GuardianDir
+    npm install --silent
+    npm run build
 
-$mcpConfig | Out-File -FilePath (Join-Path $RootDir ".mcp.egc.json") -Encoding utf8
-Write-Host "  harness config written to .mcp.egc.json"
+    # egc-memory
+    Write-Host "  building egc-memory..."
+    $MemoryDir = Join-Path $RootDir "mcp" "servers" "egc-memory"
+    if (-Not (Test-Path $MemoryDir)) {
+        Write-Error "Not found: $MemoryDir"
+        exit 1
+    }
+    Set-Location -Path $MemoryDir
+    npm install --silent
+    npm run build
 
-# Final validation
-node scripts\egc.js doctor
+    # Initialize database
+    Write-Host "  initializing database..."
+    Set-Location -Path $RootDir
+    node $EgcScript init
+}
 
-Write-Host ""
-Write-Host "Installation complete."
-Write-Host ""
-Write-Host "To add EGC to your harness, merge .mcp.egc.json into your harness MCP config."
-Write-Host "Run 'egc --help' for available commands."
+# Delegate to Node installer (handles --target, --dry-run, --modules, --profile, etc.)
+Set-Location -Path $RootDir
+node $EgcInstall @args
+
+if (-not $DryRun) {
+    # Final validation
+    node $EgcScript doctor
+
+    Write-Host ""
+    Write-Host "Installation complete."
+    Write-Host ""
+    Write-Host "To add EGC to your harness, merge .mcp.egc.json into your harness MCP config."
+    Write-Host "Run 'egc --help' for available commands."
+}
