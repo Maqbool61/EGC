@@ -27,9 +27,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
-        node: ['22.x']
-        pm: [npm]
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        node: ['18.x', '20.x', '22.x']
+        pm: [npm, yarn, bun]
+        exclude:
+          # Bun has limited Windows support
+          - os: windows-latest
+            pm: bun
 
     steps:
       - name: Checkout
