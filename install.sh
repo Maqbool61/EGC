@@ -56,12 +56,22 @@ if [ "$DRY_RUN" = false ]; then
   # Initialize database and local directories
   echo "  initializing database..."
   cd "$ROOT_DIR"
-  node scripts/egc.js init
+  node scripts/bootstrap-state-db.js
 fi
 
-# Delegate to Node installer (handles --target, --dry-run, --modules, --profile, etc.)
+# Delegate to Node installer only when install-relevant args are present
 cd "$ROOT_DIR"
-node scripts/install-apply.js "$@"
+_has_install_args=false
+for _arg in "$@"; do
+  case "$_arg" in
+    --target|--profile|--modules|--config|--with|--without|--dry-run|--json) _has_install_args=true; break ;;
+  esac
+  # positional arg = language/component
+  case "$_arg" in -*) ;; *) _has_install_args=true; break ;; esac
+done
+if [ "$_has_install_args" = true ]; then
+  node scripts/install-apply.js "$@"
+fi
 
 [ "$DRY_RUN" = true ] && exit 0
 
