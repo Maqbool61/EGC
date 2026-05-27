@@ -21,7 +21,7 @@ You open AGY on a project you haven't touched in two weeks. Without typing anyth
 ```
 State loaded from egc-memory via ~/.egc/state/Projetos--everything-gemini.md
 
-Context and preferences acknowledged (no AI attribution, terse responses).
+Context and preferences acknowledged (terse responses).
 
 Ready to pick up the next items:
 • Test full install on a clean machine
