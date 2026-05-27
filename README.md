@@ -193,4 +193,4 @@ The branch `legacy-runtime` preserves the full historical architecture for anyon
 
 ## License
 
-[MIT](LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE) [MIT](LICENSE)
