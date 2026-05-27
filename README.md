@@ -196,5 +196,6 @@ The branch `legacy-runtime` preserves the full historical architecture for anyon
 ---
 
 <p align="center">
-  <img src="assets/images/egc-logo.png" alt="EGC Logo" width="80" />
+  <img src="assets/images/egc-logo.png" alt="EGC Logo" width="80" /><br/>
+  Desenvolvido por <a href="https://linkedin.com/in/felipemarzochi">Felipe Marzochi</a>
 </p>
