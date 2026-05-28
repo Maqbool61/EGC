@@ -151,6 +151,14 @@ if [ -t 0 ] && [ "$DRY_RUN" = false ]; then
       echo "  installing to Kiro..."
       bash "$ROOT_DIR/.kiro/install.sh" ~
     fi
+    if [ -d "$HOME/.trae" ] || [ -d "$HOME/.trae-cn" ] || command -v trae >/dev/null 2>&1; then
+      echo "  installing to Trae..."
+      bash "$ROOT_DIR/.trae/install.sh" ~
+    fi
+    if [ -d "$HOME/.codebuddy" ] || command -v codebuddy >/dev/null 2>&1; then
+      echo "  installing to CodeBuddy..."
+      bash "$ROOT_DIR/.codebuddy/install.sh" ~
+    fi
   fi
 fi
 

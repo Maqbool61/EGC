@@ -180,6 +180,49 @@ try {
   }
 })();
 
+// ── Trae (~/.trae/MEMORY.md and ~/.trae-cn/MEMORY.md) ────────────────────────
+(function bootstrapTrae() {
+  try {
+    const src = path.join(__dirname, '..', '.trae', 'MEMORY.md');
+    if (!fs.existsSync(src)) return;
+    for (const dir of ['.trae', '.trae-cn']) {
+      const traeDir = path.join(HOME, dir);
+      if (!fs.existsSync(traeDir)) continue;
+      const target = path.join(traeDir, 'MEMORY.md');
+      if (fs.existsSync(target)) {
+        console.log(`  [cognitive] Trae (${dir}): already configured`);
+        continue;
+      }
+      fs.copyFileSync(src, target);
+      console.log(`  [cognitive] Trae (${dir}): memory protocol installed (~/${dir}/MEMORY.md)`);
+    }
+  } catch (e) {
+    console.log(`  [cognitive] Trae: erro inesperado — ${e.message}`);
+  }
+})();
+
+// ── CodeBuddy (~/.codebuddy/MEMORY.md) ───────────────────────────────────────
+(function bootstrapCodeBuddy() {
+  try {
+    const codebuddyDir = path.join(HOME, '.codebuddy');
+    if (!fs.existsSync(codebuddyDir)) return;
+    const target = path.join(codebuddyDir, 'MEMORY.md');
+    if (fs.existsSync(target)) {
+      console.log('  [cognitive] CodeBuddy: already configured');
+      return;
+    }
+    const src = path.join(__dirname, '..', '.codebuddy', 'MEMORY.md');
+    if (fs.existsSync(src)) {
+      fs.copyFileSync(src, target);
+    } else {
+      fs.writeFileSync(target, '# Session Memory\n\nAt the start of every session call `get_state({})` via egc-memory to restore context. At the end call `update_state({...})` to save decisions.\n');
+    }
+    console.log('  [cognitive] CodeBuddy: memory protocol installed (~/.codebuddy/MEMORY.md)');
+  } catch (e) {
+    console.log(`  [cognitive] CodeBuddy: erro inesperado — ${e.message}`);
+  }
+})();
+
 // ── Kiro (~/.kiro/hooks/) ─────────────────────────────────────────────────────
 (function bootstrapKiro() {
   try {

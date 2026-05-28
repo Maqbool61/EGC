@@ -133,6 +133,22 @@ if ($isInteractive -and -not $DryRun) {
                 Write-Host "  note: Kiro detected but bash not available — run manually: bash .kiro/install.sh ~" -ForegroundColor Yellow
             }
         }
+        if ((Get-Command trae -ErrorAction SilentlyContinue) -or (Test-Path (Join-Path $env:USERPROFILE ".trae")) -or (Test-Path (Join-Path $env:USERPROFILE ".trae-cn"))) {
+            if (Get-Command bash -ErrorAction SilentlyContinue) {
+                Write-Host "  installing to Trae..."
+                bash (Join-Path $RootDir (Join-Path ".trae" "install.sh")) ~
+            } else {
+                Write-Host "  note: Trae detected but bash not available — run manually: bash .trae/install.sh ~" -ForegroundColor Yellow
+            }
+        }
+        if ((Get-Command codebuddy -ErrorAction SilentlyContinue) -or (Test-Path (Join-Path $env:USERPROFILE ".codebuddy"))) {
+            if (Get-Command bash -ErrorAction SilentlyContinue) {
+                Write-Host "  installing to CodeBuddy..."
+                bash (Join-Path $RootDir (Join-Path ".codebuddy" "install.sh")) ~
+            } else {
+                Write-Host "  note: CodeBuddy detected but bash not available — run manually: bash .codebuddy/install.sh ~" -ForegroundColor Yellow
+            }
+        }
     }
 }
 
