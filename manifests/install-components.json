@@ -426,6 +426,14 @@
       "modules": [
         "research-apis"
       ]
+    },
+    {
+      "id": "skill:extended",
+      "family": "skill",
+      "description": "Extended skill library (81 skills): Quarkus, FastAPI, Redis, motion UI, accessibility, Angular, Vue, scientific research, homelab networking, healthcare, F# testing, and more. Beta.",
+      "modules": [
+        "skills-extended"
+      ]
     }
   ]
 }
