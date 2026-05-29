@@ -91,16 +91,11 @@ function askGemini(systemPrompt, history, userMessage, model) {
   }
   args.push('-p', fullPrompt);
 
-  // On Windows, the `egc` binary installed via npm is `egc.cmd`.
-  // Node's spawn() cannot resolve `.cmd` wrappers via PATH without shell: true,
-  // so this call fails with `spawn egc ENOENT` on Windows otherwise.
-  // 'egc' is a hardcoded literal here (not user input), so shell mode is safe.
-  const result = spawnSync('egc', args, {
+  const result = spawnSync(process.execPath, [path.join(__dirname, 'egc.js'), ...args], {
     encoding: 'utf8',
     stdio: ['pipe', 'pipe', 'pipe'],
     env: { ...process.env, GEMINICODE: '' },
     timeout: 300000,
-    shell: process.platform === 'win32',
   });
 
   if (result.error) {

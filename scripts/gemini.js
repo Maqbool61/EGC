@@ -42,7 +42,6 @@ function main() {
     cwd: process.cwd(),
     env,
     stdio: 'inherit',
-    shell: os.platform() === 'win32'
   });
 
   if (result.error) {
