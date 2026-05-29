@@ -118,6 +118,23 @@ function run(raw, options = {}) {
     };
   }
 
+  try {
+    const realScript = fs.realpathSync(observePath);
+    const realRoot = fs.realpathSync(path.resolve(pluginRoot));
+    const realRel = path.relative(realRoot, realScript);
+    if (!realRel || realRel.startsWith('..') || path.isAbsolute(realRel)) {
+      return {
+        stderr: `[Hook] symlink traversal rejected: ${observePath}`,
+        exitCode: 0
+      };
+    }
+  } catch (_) {
+    return {
+      stderr: `[Hook] path resolution failed: ${observePath}`,
+      exitCode: 0
+    };
+  }
+
   const shell = findShellBinary();
   if (!shell) {
     return {
