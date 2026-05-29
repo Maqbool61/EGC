@@ -51,9 +51,9 @@ One install. Every tool. Permanent memory.
 `sh install.sh` detects which AI tools you have installed — Claude Code, AGY, Cursor, Kiro, Codex, OpenCode, Trae, CodeBuddy — and registers the MCP servers in all of them. It also runs a cognitive bootstrap that writes the memory protocol into each tool's instruction files.
 
 For every supported tool:
-- **Open any session** → AI reads your project state → picks up where you left off.
-- **Close any session** → AI saves decisions, preferences, next steps.
-- **Switch tools** → same state file → same context → no re-explaining.
+- **Open any session** → AI reads your project state → picks up where you left off
+- **Close any session** → AI saves decisions, preferences, next steps
+- **Switch tools** → same state file → same context → no re-explaining
 
 The memory protocol requires the AI to call `get_state` and `update_state` via the egc-memory MCP tool. The bootstrap injects the instruction; the tool must support MCP to execute it.
 
@@ -89,11 +89,11 @@ sh install.sh
 
 The installer runs these steps:
 
-1. Compiles the MCP servers (`egc-guardian`, `egc-memory`).
-2. Initializes the local SQLite database.
-3. Runs the cognitive bootstrap — writes the memory protocol into `~/.claude/CLAUDE.md` (Claude Code) and `~/.gemini/GEMINI.md` (AGY), creating the files if they don't exist, idempotent.
-4. Registers both MCP servers in every detected tool's config file.
-5. Asks interactively whether to install the prompt library (62 agents, 228 skills, 74 commands) — skipped automatically in CI.
+1. Compiles the MCP servers (`egc-guardian`, `egc-memory`)
+2. Initializes the local SQLite database
+3. Runs the cognitive bootstrap — writes the memory protocol into `~/.claude/CLAUDE.md` (Claude Code) and `~/.gemini/GEMINI.md` (AGY), creating the files if they don't exist, idempotent
+4. Registers both MCP servers in every detected tool's config file
+5. Asks interactively whether to install the prompt library (62 agents, 228 skills, 74 commands) — skipped automatically in CI
 
 The installer will print which tools it found and registered:
 
@@ -133,10 +133,10 @@ The prompt library is optional. During `sh install.sh`, you'll be asked whether 
 
 | Type | Count | What it is |
 |---|---|---|
-| Agents | 62 agents | Persona and behavior definitions. |
-| Skills | 228 skills | Domain-specific workflow runbooks. |
-| Commands | 74 commands | Command definitions and lifecycle hooks. |
-| Rules | 111 | Constraints and governance directives. |
+| Agents | 62 agents | Persona and behavior definitions |
+| Skills | 228 skills | Domain-specific workflow runbooks |
+| Commands | 74 commands | Command definitions and lifecycle hooks |
+| Rules | 111 | Constraints and governance directives |
 
 Organized per harness under `.cursor/`, `.claude/`, `.gemini/`, `.kiro/`, and four others. Switch tools and the same workflows follow you.
 
@@ -154,15 +154,15 @@ Organized per harness under `.cursor/`, `.claude/`, `.gemini/`, `.kiro/`, and fo
 
 | Tool | MCP registered | Cognitive bootstrap |
 |---|---|---|
-| Claude Code | Yes | Yes — protocol injected into `~/.claude/CLAUDE.md`. |
-| Antigravity CLI (AGY) | Yes | Yes — protocol injected into `~/.gemini/GEMINI.md`. |
-| Gemini CLI | Yes | Yes — protocol injected into `~/.gemini/GEMINI.md`. |
-| Cursor | Yes | Yes — protocol injected into global `cursor.rules` setting. |
-| Codex CLI | Yes | Yes — `persistent_instructions` appended to `~/.codex/config.toml`. |
-| OpenCode | Yes | Yes — protocol written to `~/.opencode/instructions/EGC_MEMORY.md`. |
-| Kiro | Yes | Yes — session hooks installed to `~/.kiro/hooks/`. |
-| Trae | Context injection | Yes — protocol written to `~/.trae/MEMORY.md`. |
-| CodeBuddy | Context injection | Yes — protocol written to `~/.codebuddy/MEMORY.md`. |
+| Claude Code | Yes | Yes — protocol injected into `~/.claude/CLAUDE.md` |
+| Antigravity CLI (AGY) | Yes | Yes — protocol injected into `~/.gemini/GEMINI.md` |
+| Gemini CLI | Yes | Yes — protocol injected into `~/.gemini/GEMINI.md` |
+| Cursor | Yes | Yes — protocol injected into global `cursor.rules` setting |
+| Codex CLI | Yes | Yes — `persistent_instructions` appended to `~/.codex/config.toml` |
+| OpenCode | Yes | Yes — protocol written to `~/.opencode/instructions/EGC_MEMORY.md` |
+| Kiro | Yes | Yes — session hooks installed to `~/.kiro/hooks/` |
+| Trae | Context injection | Yes — protocol written to `~/.trae/MEMORY.md` |
+| CodeBuddy | Context injection | Yes — protocol written to `~/.codebuddy/MEMORY.md` |
 | Obsidian | Yes — if already configured, synced to all tools | N/A |
 
 If you use Obsidian and have the [Obsidian MCP server](https://github.com/MarkusPfundstein/mcp-obsidian) configured, the installer detects it automatically and gives every AI tool in your setup direct read-only access to your vault.
@@ -173,23 +173,23 @@ If you use Obsidian and have the [Obsidian MCP server](https://github.com/Markus
 
 EGC runs two local MCP servers over stdio.
 
-**egc-memory** — the one you'll use every session.
+**egc-memory** — the one you'll use every session
 
 | Tool | What it does |
 |---|---|
-| `get_state` | Reads project memory at session start. |
-| `update_state` | Saves this session's decisions, preferences, and next steps. |
-| `store_decision` | Persists a decision to SQLite. |
-| `query_history` | Returns past decisions by timestamp. |
+| `get_state` | Reads project memory at session start |
+| `update_state` | Saves this session's decisions, preferences, and next steps |
+| `store_decision` | Persists a decision to SQLite |
+| `query_history` | Returns past decisions by timestamp |
 
-**egc-guardian** — runs in the background.
+**egc-guardian** — runs in the background
 
 | Tool | What it does |
 |---|---|
-| `validate_command` | Blocks shell injection and unsafe binaries. |
-| `validate_write` | Blocks writes to sensitive paths (`~/.ssh`, `/etc`). |
-| `reduce_context` | Deduplicates and trims Markdown payloads. |
-| `orchestrate_task` | Routes prompts to relevant agents and skills. |
+| `validate_command` | Blocks shell injection and unsafe binaries |
+| `validate_write` | Blocks writes to sensitive paths (`~/.ssh`, `/etc`) |
+| `reduce_context` | Deduplicates and trims Markdown payloads |
+| `orchestrate_task` | Routes prompts to relevant agents and skills |
 
 ---
 
