@@ -1,4 +1,4 @@
-[![version](https://img.shields.io/github/package-json/v/Fmarzochi/everything-gemini?color=cb3837&logo=npm&logoColor=white)](https://github.com/Fmarzochi/everything-gemini) [![Node.js >= 18](https://img.shields.io/badge/node-%3E%3D18-brightgreen?logo=node.js&logoColor=white)](https://nodejs.org) [![TypeScript](https://img.shields.io/badge/TypeScript-5.3-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org) [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)](CONTRIBUTING.md) [![Stars](https://img.shields.io/github/stars/Fmarzochi/everything-gemini)](https://github.com/Fmarzochi/everything-gemini/stargazers) [![Forks](https://img.shields.io/github/forks/Fmarzochi/everything-gemini)](https://github.com/Fmarzochi/everything-gemini/network/members) [![Issues](https://img.shields.io/github/issues/Fmarzochi/everything-gemini)](https://github.com/Fmarzochi/everything-gemini/issues) [![Maintained](https://img.shields.io/badge/Maintained-yes-brightgreen)](https://github.com/Fmarzochi/everything-gemini/commits/main) [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/Fmarzochi/everything-gemini/badge)](https://securityscorecards.dev/viewer/?uri=github.com/Fmarzochi/everything-gemini)
+[![version](https://img.shields.io/github/package-json/v/Fmarzochi/everything-gemini?color=cb3837&logo=npm&logoColor=white)](https://github.com/Fmarzochi/everything-gemini) [![Node.js >= 18](https://img.shields.io/badge/node-%3E%3D18-brightgreen)](https://nodejs.org)
 
 <div align="center">
 
@@ -32,13 +32,13 @@ Ready to pick up the next items:
 
 The AI already knows what you were building, what decisions you made, what failed, and exactly where you stopped. You didn't type anything. You just started working.
 
-After `sh install.sh`, the memory protocol is injected into the global instruction files for Claude Code, AGY/Gemini CLI, Cursor, Codex, OpenCode, Kiro, Trae, and CodeBuddy — so the AI reads state at the start of each session and saves it at the end. For tools where the AI instruction file isn't read automatically (varies by tool version), you may need to add the project's `CLAUDE.md` or equivalent to the session context manually.
+After `sh install.sh`, the memory protocol is injected into the global instruction files for Claude Code, AGY/Gemini CLI, Cursor, Codex, OpenCode, Kiro, Trae, and CodeBuddy — so the AI reads state at the start of every session and saves decisions at the end.
 
 ---
 
 ## The problem
 
-Every AI coding session starts from zero. Close the window and the context is gone — your stack preferences, the architectural decisions you made last week, the approach that failed after three attempts. Next session you spend the first ten minutes re-explaining ground you already covered.
+Every AI coding session starts from zero. Close the window and the context is gone — your stack preferences, the architectural decisions you made last week, the approach that failed after three hours.
 
 It gets worse when you switch tools. Move from Cursor to Claude Code and you start over again. The AI doesn't know you. It never did.
 
@@ -48,12 +48,12 @@ It gets worse when you switch tools. Move from Cursor to Claude Code and you sta
 
 One install. Every tool. Permanent memory.
 
-`sh install.sh` detects which AI tools you have installed — Claude Code, AGY, Cursor, Kiro, Codex, OpenCode, Trae, CodeBuddy — and registers the MCP servers in all of them. It also runs a cognitive bootstrap that writes the memory protocol into the global instruction files for each tool, so the AI is instructed to call `get_state({})` at the start of every session and `update_state({...})` at the end.
+`sh install.sh` detects which AI tools you have installed — Claude Code, AGY, Cursor, Kiro, Codex, OpenCode, Trae, CodeBuddy — and registers the MCP servers in all of them. It also runs a cognitive bootstrap that writes the memory protocol into each tool's instruction files.
 
 For every supported tool:
-- **Open any session** → AI reads your project state → picks up where you left off
-- **Close any session** → AI saves decisions, preferences, next steps
-- **Switch tools** → same state file → same context → no re-explaining
+- **Open any session** → AI reads your project state → picks up where you left off.
+- **Close any session** → AI saves decisions, preferences, next steps.
+- **Switch tools** → same state file → same context → no re-explaining.
 
 The memory protocol requires the AI to call `get_state` and `update_state` via the egc-memory MCP tool. The bootstrap injects the instruction; the tool must support MCP to execute it.
 
@@ -89,11 +89,11 @@ sh install.sh
 
 The installer runs these steps:
 
-1. Compiles the MCP servers (`egc-guardian`, `egc-memory`)
-2. Initializes the local SQLite database
-3. Runs the cognitive bootstrap — writes the memory protocol into `~/.claude/CLAUDE.md` (Claude Code) and `~/.gemini/GEMINI.md` (AGY), creating the files if they don't exist, idempotent
-4. Registers both MCP servers in every detected tool's config file
-5. Asks interactively whether to install the prompt library (62 agents, 228 skills, 74 commands) — skipped automatically in CI
+1. Compiles the MCP servers (`egc-guardian`, `egc-memory`).
+2. Initializes the local SQLite database.
+3. Runs the cognitive bootstrap — writes the memory protocol into `~/.claude/CLAUDE.md` (Claude Code) and `~/.gemini/GEMINI.md` (AGY), creating the files if they don't exist, idempotent.
+4. Registers both MCP servers in every detected tool's config file.
+5. Asks interactively whether to install the prompt library (62 agents, 228 skills, 74 commands) — skipped automatically in CI.
 
 The installer will print which tools it found and registered:
 
@@ -129,14 +129,14 @@ cd everything-gemini
 
 ## Prompt library
 
-The prompt library is optional. During `sh install.sh`, you'll be asked whether to install it. In CI or non-interactive shells, this step is skipped. Install once to get access to 62 agents, 228 skills, and 74 commands — written from real experience, not generated.
+The prompt library is optional. During `sh install.sh`, you'll be asked whether to install it. In CI or non-interactive shells, this step is skipped. Install once to get access to 62 agents, 228 skills, 74 commands, and 111 rules.
 
 | Type | Count | What it is |
 |---|---|---|
-| Agents | 62 agents | Persona and behavior definitions |
-| Skills | 228 skills | Domain-specific workflow runbooks |
-| Commands | 74 commands | Command definitions and lifecycle hooks |
-| Rules | 111 | Constraints and governance directives |
+| Agents | 62 agents | Persona and behavior definitions. |
+| Skills | 228 skills | Domain-specific workflow runbooks. |
+| Commands | 74 commands | Command definitions and lifecycle hooks. |
+| Rules | 111 | Constraints and governance directives. |
 
 Organized per harness under `.cursor/`, `.claude/`, `.gemini/`, `.kiro/`, and four others. Switch tools and the same workflows follow you.
 
@@ -154,18 +154,18 @@ Organized per harness under `.cursor/`, `.claude/`, `.gemini/`, `.kiro/`, and fo
 
 | Tool | MCP registered | Cognitive bootstrap |
 |---|---|---|
-| Claude Code | Yes | Yes — protocol injected into `~/.claude/CLAUDE.md` |
-| Antigravity CLI (AGY) | Yes | Yes — protocol injected into `~/.gemini/GEMINI.md` |
-| Gemini CLI | Yes | Yes — protocol injected into `~/.gemini/GEMINI.md` |
-| Cursor | Yes | Yes — protocol injected into global `cursor.rules` setting |
-| Codex CLI | Yes | Yes — `persistent_instructions` appended to `~/.codex/config.toml` |
-| OpenCode | Yes | Yes — protocol written to `~/.opencode/instructions/EGC_MEMORY.md` |
-| Kiro | Yes | Yes — session hooks installed to `~/.kiro/hooks/` |
-| Trae | Context injection | Yes — protocol written to `~/.trae/MEMORY.md` |
-| CodeBuddy | Context injection | Yes — protocol written to `~/.codebuddy/MEMORY.md` |
+| Claude Code | Yes | Yes — protocol injected into `~/.claude/CLAUDE.md`. |
+| Antigravity CLI (AGY) | Yes | Yes — protocol injected into `~/.gemini/GEMINI.md`. |
+| Gemini CLI | Yes | Yes — protocol injected into `~/.gemini/GEMINI.md`. |
+| Cursor | Yes | Yes — protocol injected into global `cursor.rules` setting. |
+| Codex CLI | Yes | Yes — `persistent_instructions` appended to `~/.codex/config.toml`. |
+| OpenCode | Yes | Yes — protocol written to `~/.opencode/instructions/EGC_MEMORY.md`. |
+| Kiro | Yes | Yes — session hooks installed to `~/.kiro/hooks/`. |
+| Trae | Context injection | Yes — protocol written to `~/.trae/MEMORY.md`. |
+| CodeBuddy | Context injection | Yes — protocol written to `~/.codebuddy/MEMORY.md`. |
 | Obsidian | Yes — if already configured, synced to all tools | N/A |
 
-If you use Obsidian and have the [Obsidian MCP server](https://github.com/MarkusPfundstein/mcp-obsidian) configured, the installer detects it automatically and gives every AI tool in your setup direct access to your vault — read notes, search, write — without any extra configuration.
+If you use Obsidian and have the [Obsidian MCP server](https://github.com/MarkusPfundstein/mcp-obsidian) configured, the installer detects it automatically and gives every AI tool in your setup direct read-only access to your vault.
 
 ---
 
@@ -173,23 +173,23 @@ If you use Obsidian and have the [Obsidian MCP server](https://github.com/Markus
 
 EGC runs two local MCP servers over stdio.
 
-**egc-memory** — the one you'll use every session
+**egc-memory** — the one you'll use every session.
 
 | Tool | What it does |
 |---|---|
-| `get_state` | Reads project memory at session start |
-| `update_state` | Saves this session's decisions, preferences, and next steps |
-| `store_decision` | Persists a decision to SQLite |
-| `query_history` | Returns past decisions by timestamp |
+| `get_state` | Reads project memory at session start. |
+| `update_state` | Saves this session's decisions, preferences, and next steps. |
+| `store_decision` | Persists a decision to SQLite. |
+| `query_history` | Returns past decisions by timestamp. |
 
-**egc-guardian** — runs in the background
+**egc-guardian** — runs in the background.
 
 | Tool | What it does |
 |---|---|
-| `validate_command` | Blocks shell injection and unsafe binaries |
-| `validate_write` | Blocks writes to sensitive paths (`~/.ssh`, `/etc`) |
-| `reduce_context` | Deduplicates and trims Markdown payloads |
-| `orchestrate_task` | Routes prompts to relevant agents and skills |
+| `validate_command` | Blocks shell injection and unsafe binaries. |
+| `validate_write` | Blocks writes to sensitive paths (`~/.ssh`, `/etc`). |
+| `reduce_context` | Deduplicates and trims Markdown payloads. |
+| `orchestrate_task` | Routes prompts to relevant agents and skills. |
 
 ---
 
@@ -208,7 +208,7 @@ egc auto-update    # pull latest changes and reinstall managed targets
 
 ## Architectural consolidation
 
-Earlier versions of EGC explored distributed runtime concepts — FederationManager, ReplayEngine, cognitive orchestration layers, multi-provider dispatching. Those experiments were real explorations, not deception. They helped define what the project actually needed to be.
+Earlier versions of EGC explored distributed runtime concepts — FederationManager, ReplayEngine, cognitive orchestration layers, multi-provider dispatching. Those experiments were real explorations. They taught us what not to build.
 
 What the project actually needed was simpler and more useful: persistent memory across sessions, a validation layer, and a prompt library that works in every tool without reconfiguration.
 
