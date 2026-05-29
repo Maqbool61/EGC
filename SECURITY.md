@@ -4,71 +4,43 @@
 
 | Version | Supported |
 | :--- | :--- |
-| 1.0.x | :white_check_mark: |
+| 0.9.x | Yes |
 
 ## Reporting a Vulnerability
 
-If you discover a security vulnerability in the Everything Gemini Code (EGC) runtime, please report it responsibly. **Do not open public GitHub issues for security vulnerabilities.**
+Do not open public GitHub issues for security vulnerabilities.
 
-Direct all sensitive reports to the official project maintainer:
+Use GitHub's private vulnerability reporting:
+https://github.com/Fmarzochi/everything-gemini/security/advisories/new
 
-**Email:** [fmarzochi@gmail.com](mailto:fmarzochi@gmail.com)
+Alternatively, email [fmarzochi@gmail.com](mailto:fmarzochi@gmail.com).
 
-Please include:
-- A technical description of the vulnerability.
-- Steps to reproduce.
-- Affected version(s).
-- Impact assessment.
+Include in your report:
+- A description of the vulnerability
+- Steps to reproduce
+- Affected version(s)
+- Potential impact
 
-## Responsible Disclosure
+## Response Timeline
 
-You can expect:
-- **Acknowledgment** within 72 hours.
-- **Coordination** on the disclosure process.
-- **Remediation or mitigation** as part of the maintenance lifecycle.
+- Acknowledgment: within 72 hours
+- Status update: within 14 days
+- Resolution or mitigation: within 90 days of confirmed vulnerability
 
-## Security Scope
+## Scope
 
-This policy covers the official `everything-gemini` repository, specifically:
+This policy covers the `everything-gemini` repository, including:
 
-- **Core Runtime**: Orchestrator, Execution Engine, Memory Mesh, and Event Bus.
-- **Agent Lifecycle**: Loader, Executor, and Identity Resolver modules.
-- **Installation**: `install.sh` and `install.ps1`.
-- **Governance**: Rules, Hooks, and Skill definitions.
+- Core runtime scripts (`scripts/`)
+- MCP server sources (`src/`)
+- Installation scripts (`install.sh`, `install.ps1`)
+- Hook and skill definitions (`hooks/`, `skills/`)
 
-## Runtime Security Model
+## Out of Scope
 
-EGC is a local-first, MCP-native runtime. Security is managed via:
+The following are not treated as vulnerabilities under this policy:
 
-- **Execution Validation**: Shell commands are validated against an allowlist by `egc-guardian` (`validate_command` tool) before execution.
-- **Write Protection**: Writes to sensitive paths (`~/.ssh`, `/etc`, and similar) are blocked by `egc-guardian` (`validate_write` tool).
-- **Persistence**: Session memory (`~/.egc/state/`) is stored locally via `egc-memory`. EGC does not transmit session data to external servers.
-
-## Security Hardening Philosophy
-
-EGC adheres to the principle of **Defensive Execution**:
-
-1. **Local-Only Operation**: No external telemetry or cloud-based daemons are required.
-2. **Authorization**: Workflows are dispatched via the `ExecutionOrchestrator`, providing a centralized control point.
-3. **Core Runtime Separation**: Core engine components are decoupled from user-modifiable workflows.
-4. **Structured Logging**: Security-critical transitions are captured via structured logging for offline audit.
-
-## Operational Best Practices
-
-- **Diagnostic Validation**: Run `egc doctor` to verify MCP server health and configuration.
-- **Git Hygiene**: Keep sensitive session data (`.sessions/`) excluded via `.gitignore`.
-- **Privilege**: Run the runtime with the least privilege required by the host OS.
-
-## Maintenance & Governance
-
-The EGC project is maintained independently. Security updates are managed as part of the standard release cycle. The architecture is designed for auditability and runtime verification.
-
----
-
-### Maintainer
-**Felipe Marzochi**  
-[GitHub](https://github.com/Fmarzochi) | [LinkedIn](https://www.linkedin.com/in/felipemarzochi/) | [X](https://x.com/MarzochiFelipe)
-
-### Security Contact
-For all security-related inquiries or vulnerability disclosures, contact:
-- **Email:** [fmarzochi@gmail.com](mailto:fmarzochi@gmail.com)
+- Vulnerabilities in third-party dependencies (report upstream)
+- Issues requiring physical access to the host machine
+- Denial-of-service against a local-only runtime with no network exposure
+- Behaviors that require the reporter to already have write access to the host
