@@ -4,8 +4,8 @@
 
 | Version | Status | Security Updates |
 |---------|--------|-----------------|
-| 0.9.x (latest) | Active | Yes |
-| 0.8.x and earlier | End of Life | No |
+| 1.0.x (latest) | Active | Yes |
+| 0.9.x and earlier | End of Life | No |
 
 Only the latest stable release receives security updates. Users are encouraged to upgrade to the latest version promptly.
 
@@ -21,7 +21,7 @@ End-of-life versions do not receive security backports. If you are running an un
 
 ## Support Scope
 
-Community support is provided through [GitHub Issues](https://github.com/Fmarzochi/everything-gemini/issues).
+Community support is provided through [GitHub Issues](https://github.com/Fmarzochi/EGC/issues).
 
 For security vulnerabilities, use the private reporting channel described in [SECURITY.md](SECURITY.md).
 

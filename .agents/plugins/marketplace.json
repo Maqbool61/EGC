@@ -1,12 +1,12 @@
 {
   "name": "egc",
   "interface": {
-    "displayName": "Everything Gemini Code"
+    "displayName": "EGC - Extended Global Context"
   },
   "plugins": [
     {
       "name": "egc",
-      "version": "0.9.0",
+      "version": "1.0.0",
       "source": {
         "source": "local",
         "path": "../.."

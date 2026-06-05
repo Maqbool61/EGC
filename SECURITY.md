@@ -4,14 +4,14 @@
 
 | Version | Supported |
 | :--- | :--- |
-| 0.9.x | Yes |
+| 1.0.x | Yes |
 
 ## Reporting a Vulnerability
 
 Do not open public GitHub issues for security vulnerabilities.
 
 Use GitHub's private vulnerability reporting:
-https://github.com/Fmarzochi/everything-gemini/security/advisories/new
+https://github.com/Fmarzochi/EGC/security/advisories/new
 
 Alternatively, email [fmarzochi@gmail.com](mailto:fmarzochi@gmail.com).
 
@@ -29,7 +29,7 @@ Include in your report:
 
 ## Scope
 
-This policy covers the `everything-gemini` repository, including:
+This policy covers the `EGC` repository, including:
 
 - Core runtime scripts (`scripts/`)
 - MCP server sources (`mcp/servers/`)
