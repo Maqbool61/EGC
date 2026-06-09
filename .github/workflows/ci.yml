@@ -135,9 +135,29 @@ jobs:
 
       - name: Setup Python 3.12 (Windows)
         if: runner.os == 'Windows'
+        id: python-win
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.12'
+
+      - name: Pin Python and MSVS for node-gyp (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Add-Content $env:GITHUB_ENV "npm_config_python=${{ steps.python-win.outputs.python-path }}"
+          $vcs = @(Get-Item "C:\Program Files\Microsoft Visual Studio\*\*\VC" -ErrorAction SilentlyContinue)
+          if ($vcs) { Add-Content $env:GITHUB_ENV "VCINSTALLDIR=$(($vcs | Sort-Object FullName -Descending)[0].FullName)\" }
+          npm install -g node-gyp@12
+          $v12 = Join-Path (npm -g root) "node-gyp"
+          $nodeDir = Split-Path (Get-Command node).Source -Parent
+          $bundled = Join-Path $nodeDir "node_modules\npm\node_modules\node-gyp"
+          Write-Host "v12=$v12 exists=$(Test-Path $v12)"
+          Write-Host "bundled=$bundled exists=$(Test-Path $bundled)"
+          if ((Test-Path $v12) -and (Test-Path $bundled)) {
+            Remove-Item $bundled -Recurse -Force
+            Copy-Item $v12 $bundled -Recurse -Force
+            Write-Host "node-gyp bundled replaced"
+          }
 
       # Install dependencies
       # COREPACK_ENABLE_STRICT=0 allows pnpm to install even though
