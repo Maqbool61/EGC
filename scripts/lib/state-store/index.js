@@ -1,14 +1,11 @@
 'use strict';
 
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
 
 const { applyMigrations, getAppliedMigrations } = require('./migrations');
 const { createQueryApi } = require('./queries');
 const { assertValidEntity, validateEntity } = require('./schema');
-
-const DEFAULT_STATE_STORE_RELATIVE_PATH = path.join('.gemini', 'egc', 'state.db');
 
 // Try to load better-sqlite3. On Windows without Build Tools the native
 // module may not compile: in that case we fall back to a null/amnesiac
@@ -29,8 +26,28 @@ function resolveStateStorePath(options = {}) {
     return path.resolve(options.dbPath);
   }
 
-  const homeDir = options.homeDir || process.env.HOME || os.homedir();
-  return path.join(homeDir, DEFAULT_STATE_STORE_RELATIVE_PATH);
+  const { getEGCDir } = require('../utils');
+
+  if (options.homeDir) {
+    const savedHome = process.env.HOME;
+    const savedUserProfile = process.env.USERPROFILE;
+    const savedEgcDir = process.env.EGC_DIR;
+    try {
+      process.env.HOME = options.homeDir;
+      process.env.USERPROFILE = options.homeDir;
+      delete process.env.EGC_DIR;
+      return path.join(getEGCDir(), 'egc', 'state.db');
+    } finally {
+      if (savedHome === undefined) delete process.env.HOME;
+      else process.env.HOME = savedHome;
+      if (savedUserProfile === undefined) delete process.env.USERPROFILE;
+      else process.env.USERPROFILE = savedUserProfile;
+      if (savedEgcDir === undefined) delete process.env.EGC_DIR;
+      else process.env.EGC_DIR = savedEgcDir;
+    }
+  }
+
+  return path.join(getEGCDir(), 'egc', 'state.db');
 }
 
 function sanitizeNamedParams(params) {
@@ -179,7 +196,6 @@ async function createStateStore(options = {}) {
 }
 
 module.exports = {
-  DEFAULT_STATE_STORE_RELATIVE_PATH,
   createStateStore,
   resolveStateStorePath,
 };
