@@ -1,4 +1,11 @@
 <div align="center">
+  <b>Language / Idioma</b>
+  <br/>
+  <a href="README.md"><b>English</b></a> |
+  <a href="translations/pt/README.md">Português do Brasil</a>
+</div>
+
+<div align="center">
 <img src="assets/hero.png" alt="EGC - Extended Global Context" width="100%" />
 </div>
 
