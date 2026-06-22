@@ -79,6 +79,31 @@ const LANGUAGE_RULES = [
     type: 'php',
     markers: ['composer.json', 'composer.lock'],
     extensions: ['.php']
+  },
+  {
+    type: 'dart',
+    markers: ['pubspec.yaml', 'pubspec.lock'],
+    extensions: ['.dart']
+  },
+  {
+    type: 'cpp',
+    markers: ['CMakeLists.txt', 'Makefile', 'configure.ac'],
+    extensions: ['.cpp', '.cc', '.cxx', '.hpp', '.hxx', '.h']
+  },
+  {
+    type: 'fsharp',
+    markers: [],
+    extensions: ['.fs', '.fsx', '.fsi']
+  },
+  {
+    type: 'perl',
+    markers: ['Makefile.PL', 'Build.PL', 'cpanfile'],
+    extensions: ['.pl', '.pm', '.t']
+  },
+  {
+    type: 'arkts',
+    markers: ['build-profile.json5', 'oh-package.json5'],
+    extensions: ['.ets', '.ats']
   }
 ];
 
@@ -124,7 +149,13 @@ const FRAMEWORK_RULES = [
   { framework: 'symfony', language: 'php', markers: ['symfony.lock'], packageKeys: ['symfony/framework-bundle'] },
 
   // Elixir frameworks
-  { framework: 'phoenix', language: 'elixir', markers: [], packageKeys: ['phoenix'] }
+  { framework: 'phoenix', language: 'elixir', markers: [], packageKeys: ['phoenix'] },
+
+  // Dart frameworks
+  { framework: 'flutter', language: 'dart', markers: [], packageKeys: ['flutter'] },
+
+  // C++ frameworks
+  { framework: 'qt', language: 'cpp', markers: ['.qmake.conf'], packageKeys: ['qt5', 'qt6', 'qt'] }
 ];
 
 /**
@@ -301,6 +332,56 @@ function getComposerDeps(projectDir) {
 }
 
 /**
+ * Read CMakeLists.txt for C++ library references (simple keyword extraction)
+ * @param {string} projectDir - Project root directory
+ * @returns {string[]} Array of library/package names (lowercase)
+ */
+function getCppDeps(projectDir) {
+  try {
+    const cmakePath = path.join(projectDir, 'CMakeLists.txt');
+    if (!fs.existsSync(cmakePath)) return [];
+    const content = fs.readFileSync(cmakePath, 'utf8').toLowerCase();
+    const deps = [];
+    const patterns = [
+      /find_package\s*\(\s*(\w+)/g,
+      /target_link_libraries\s*\(\s*\S+\s+([\w:]+)/g
+    ];
+    for (const re of patterns) {
+      let m;
+      while ((m = re.exec(content)) !== null) {
+        if (m[1]) deps.push(m[1].toLowerCase());
+      }
+    }
+    return deps;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Read pubspec.yaml for Dart/Flutter package dependencies
+ * @param {string} projectDir - Project root directory
+ * @returns {string[]} Array of package names
+ */
+function getDartDeps(projectDir) {
+  try {
+    const pubspecPath = path.join(projectDir, 'pubspec.yaml');
+    if (!fs.existsSync(pubspecPath)) return [];
+    const content = fs.readFileSync(pubspecPath, 'utf8');
+    const deps = [];
+    for (const line of content.split('\n')) {
+      const trimmed = line.trimStart();
+      if (!trimmed || line[0] === trimmed[0]) continue;
+      const colonIdx = trimmed.indexOf(':');
+      if (colonIdx > 0) deps.push(trimmed.slice(0, colonIdx).trim());
+    }
+    return deps;
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Read mix.exs for Elixir dependencies (simple pattern match)
  * @param {string} projectDir - Project root directory
  * @returns {string[]} Array of dependency atom names
@@ -354,6 +435,8 @@ function detectProjectType(projectDir) {
   const rustDeps = getRustDeps(projectDir);
   const composerDeps = getComposerDeps(projectDir);
   const elixirDeps = getElixirDeps(projectDir);
+  const dartDeps = getDartDeps(projectDir);
+  const cppDeps = getCppDeps(projectDir);
 
   for (const rule of FRAMEWORK_RULES) {
     const hasMarker = rule.markers.some(m => fileExists(projectDir, m));
@@ -380,6 +463,12 @@ function detectProjectType(projectDir) {
           break;
         case 'elixir':
           depList = elixirDeps;
+          break;
+        case 'dart':
+          depList = dartDeps;
+          break;
+        case 'cpp':
+          depList = cppDeps;
           break;
       }
       hasDep = rule.packageKeys.some(key => depList.some(dep => dep.toLowerCase().includes(key.toLowerCase())));
@@ -425,5 +514,7 @@ module.exports = {
   getGoDeps,
   getRustDeps,
   getComposerDeps,
-  getElixirDeps
+  getElixirDeps,
+  getDartDeps,
+  getCppDeps
 };
