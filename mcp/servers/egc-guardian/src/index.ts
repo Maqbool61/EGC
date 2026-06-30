@@ -112,9 +112,12 @@ function writeSecurityAuditLog(action: string, details: Record<string, unknown>)
   const entry = JSON.stringify({ timestamp: new Date().toISOString(), action, ...details });
   try {
     fs.mkdirSync(auditLogDir, { recursive: true, mode: 0o700 });
+    fs.chmodSync(auditLogDir, 0o700);
     fs.appendFileSync(auditLogPath, entry + '\n', { encoding: 'utf-8', mode: 0o600 });
     fs.chmodSync(auditLogPath, 0o600);
-  } catch { /* non-critical */ }
+  } catch (err) {
+    sysLogger.log('ERROR', 'AUDIT_LOG_WRITE_FAILED', 'FATAL', { error: String(err) });
+  }
 }
 
 function auditLog(action: string, status: 'ALLOWED'|'DENIED'|'MUTATED'|'ONLINE'|'SHUTDOWN'|'FATAL', details: Record<string, unknown> = {}) {
