@@ -106,10 +106,15 @@ class PersistentLogger {
 
 const sysLogger = new PersistentLogger('egc-guardian-router');
 
-const auditLogPath = path.join(os.homedir(), '.egc', 'audit.log');
+const auditLogDir = path.join(os.homedir(), '.egc');
+const auditLogPath = path.join(auditLogDir, 'audit.log');
 function writeSecurityAuditLog(action: string, details: Record<string, unknown>) {
   const entry = JSON.stringify({ timestamp: new Date().toISOString(), action, ...details });
-  try { fs.appendFileSync(auditLogPath, entry + '\n', 'utf-8'); } catch { /* non-critical */ }
+  try {
+    fs.mkdirSync(auditLogDir, { recursive: true, mode: 0o700 });
+    fs.appendFileSync(auditLogPath, entry + '\n', { encoding: 'utf-8', mode: 0o600 });
+    fs.chmodSync(auditLogPath, 0o600);
+  } catch { /* non-critical */ }
 }
 
 function auditLog(action: string, status: 'ALLOWED'|'DENIED'|'MUTATED'|'ONLINE'|'SHUTDOWN'|'FATAL', details: Record<string, unknown> = {}) {
