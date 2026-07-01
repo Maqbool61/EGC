@@ -29,6 +29,7 @@ const { spawnSync, spawn } = require('child_process');
 const os = require('os');
 
 const { version: PKG_VERSION } = require('../package.json');
+const { registerMcpServers: runMcpRegistration } = require('./lib/mcp-register');
 
 const isTTY = process.stdout.isTTY;
 const c = {
@@ -133,70 +134,16 @@ function registerMcpServers() {
   logAction('detecting tools...');
   const HOME = os.homedir();
 
-  const targets = [
-    { name: 'Antigravity CLI', path: path.join(HOME, '.gemini', 'antigravity-cli', 'mcp_config.json'), gate: () => fs.existsSync(path.join(HOME, '.gemini', 'antigravity-cli')), format: 'json' },
-    { name: 'Gemini CLI', path: path.join(HOME, '.gemini', 'config', 'mcp_config.json'), gate: () => fs.existsSync(path.join(HOME, '.gemini', 'config')), format: 'json' },
-    { name: 'Claude Code (global)', path: path.join(HOME, '.claude', 'claude_desktop_config.json'), gate: () => fs.existsSync(path.join(HOME, '.claude')), format: 'json' },
-    { name: 'Cursor', path: path.join(HOME, '.cursor', 'mcp.json'), gate: () => fs.existsSync(path.join(HOME, '.cursor')), format: 'json' },
-    { name: 'Kiro', path: path.join(HOME, '.kiro', 'settings', 'mcp.json'), gate: () => fs.existsSync(path.join(HOME, '.kiro')), format: 'json' },
-    { name: 'Codex CLI', path: path.join(HOME, '.codex', 'config.toml'), gate: () => fs.existsSync(path.join(HOME, '.codex', 'config.toml')), format: 'toml' },
-    { name: 'OpenCode', path: path.join(HOME, '.config', 'opencode', 'config.json'), gate: () => fs.existsSync(path.join(HOME, '.config', 'opencode', 'config.json')), format: 'json' },
-  ];
-
-  for (const target of targets) {
-    if (!target.gate()) continue;
-    if (flags.dryRun) {
-      logDry(`would register in ${target.name} (${target.path})`);
-      continue;
+  runMcpRegistration(
+    HOME,
+    { guardianBin: GUARDIAN_BIN, memoryBin: MEMORY_BIN },
+    {
+      dryRun: flags.dryRun,
+      onSkip: (target) => logDry(`would register in ${target.name} (${target.path})`),
+      onRegister: (target) => ok(target.name),
+      onWarn: (target, err) => warn(target.name, err.message),
     }
-    try {
-      if (target.format === 'json') {
-        registerJson(target.path);
-        ok(target.name);
-      } else if (target.format === 'toml') {
-        registerToml(target.path);
-        ok(target.name);
-      }
-    } catch (err) {
-      warn(target.name, err.message);
-    }
-  }
-}
-
-function registerJson(target) {
-  let obj = { mcpServers: {} };
-  if (fs.existsSync(target)) {
-    try { obj = JSON.parse(fs.readFileSync(target, 'utf8')); } catch (_) { return; }
-  }
-  if (!obj.mcpServers) obj.mcpServers = {};
-  let changed = false;
-  if (!obj.mcpServers['egc-guardian']) {
-    obj.mcpServers['egc-guardian'] = { command: 'node', args: [GUARDIAN_BIN] };
-    changed = true;
-  }
-  if (!obj.mcpServers['egc-memory']) {
-    obj.mcpServers['egc-memory'] = { command: 'node', args: [MEMORY_BIN] };
-    changed = true;
-  }
-  if (!changed) return;
-  fs.mkdirSync(path.dirname(target), { recursive: true });
-  fs.writeFileSync(target, JSON.stringify(obj, null, 2) + '\n');
-}
-
-function registerToml(target) {
-  let content = fs.existsSync(target) ? fs.readFileSync(target, 'utf8') : '';
-  let appended = false;
-  if (!content.includes('"egc-guardian"') && !content.includes("'egc-guardian'")) {
-    content += `\n[[mcp_servers]]\nname = "egc-guardian"\ncommand = "node"\nargs = ["${GUARDIAN_BIN}"]\n`;
-    appended = true;
-  }
-  if (!content.includes('"egc-memory"') && !content.includes("'egc-memory'")) {
-    content += `\n[[mcp_servers]]\nname = "egc-memory"\ncommand = "node"\nargs = ["${MEMORY_BIN}"]\n`;
-    appended = true;
-  }
-  if (!appended) return;
-  fs.mkdirSync(path.dirname(target), { recursive: true });
-  fs.writeFileSync(target, content);
+  );
 }
 
 function runStateDbBootstrap() {
