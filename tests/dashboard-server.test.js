@@ -8,6 +8,8 @@
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
+const http = require('http');
+const fs = require('fs');
 const { createAccumulator } = require('../dashboard/accumulator');
 
 // ---------------------------------------------------------------------------
@@ -86,4 +88,125 @@ test('invalid event returns false (broadcast guard)', () => {
   assert.equal(accumulateEvent(undefined), false);
   assert.equal(accumulateEvent({ ide: '' }), false);
   assert.equal(accumulateEvent({ ide: 42 }), false);
+});
+
+// ---------------------------------------------------------------------------
+// HTTP Server Payload Cap Regression Test Case (Live POST verification)
+// ---------------------------------------------------------------------------
+
+test('POST /event rejects payloads larger than 256 KB with 413 status code', (t, done) => {
+  const originalCreateServer = http.createServer;
+  const originalSetInterval = global.setInterval;
+  const originalWatchFile = fs.watchFile;
+  
+  let serverHandler = null;
+  const activeIntervals = [];
+  const watchedFiles = [];
+
+  http.createServer = (handler) => {
+    serverHandler = handler;
+    return { listen: () => {}, on: () => {} };
+  };
+
+  global.setInterval = (cb, ms) => {
+    const timerId = originalSetInterval(cb, ms);
+    activeIntervals.push(timerId);
+    return timerId;
+  };
+
+  fs.watchFile = (filename, options, listener) => {
+    watchedFiles.push(filename);
+    if (typeof options === 'function') {
+      originalWatchFile(filename, {}, options);
+    } else {
+      originalWatchFile(filename, options, listener);
+    }
+  };
+
+  // Safely evaluate the target module and guarantee cleanup via try/finally
+  try {
+    delete require.cache[require.resolve('../dashboard/server.js')];
+    require('../dashboard/server.js');
+  } finally {
+    http.createServer = originalCreateServer;
+    global.setInterval = originalSetInterval;
+    fs.watchFile = originalWatchFile;
+  }
+
+  const cleanupHandles = () => {
+    activeIntervals.forEach(id => clearInterval(id));
+    watchedFiles.forEach(file => fs.unwatchFile(file));
+  };
+
+  if (typeof serverHandler !== 'function') {
+    cleanupHandles();
+    return done(new Error('Failed to intercept dashboard server route handler logic'));
+  }
+
+  const testServer = http.createServer(serverHandler);
+  let responseValidated = false;
+
+  testServer.on('error', (err) => {
+    cleanupHandles();
+    done(err);
+  });
+
+  // Dynamic port assignment (Port 0) avoids cross-process network binding collisions
+  testServer.listen(0, '127.0.0.1', () => {
+    const DYNAMIC_PORT = testServer.address().port;
+
+    const payloadSize = 300 * 1024;
+    const largePayload = JSON.stringify({
+      ide: 'claude',
+      event: 'pre_tool',
+      padding: 'a'.repeat(payloadSize)
+    });
+
+    const options = {
+      hostname: '127.0.0.1',
+      port: DYNAMIC_PORT,
+      path: '/event',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(largePayload)
+      }
+    };
+
+    const req = http.request(options, (res) => {
+      let responseData = '';
+      res.setEncoding('utf8');
+      res.on('data', chunk => { responseData += chunk; });
+      res.on('end', () => {
+        testServer.close(() => {
+          cleanupHandles();
+          try {
+            assert.equal(res.statusCode, 413, 'Server must reject large inputs with 413 Status');
+            const body = JSON.parse(responseData);
+            assert.equal(body.error, 'Payload too large', 'Error response should explicitly match design expectations');
+            responseValidated = true;
+            done();
+          } catch (err) {
+            done(err);
+          }
+        });
+      });
+    });
+
+    req.on('error', (err) => {
+      if (responseValidated) return; // Prevent double-callback invocations if already verified cleanly
+      
+      testServer.close(() => {
+        cleanupHandles();
+        if (err.code === 'ECONNRESET') {
+          done(new Error('Connection reset before 413 response was fully processed – server may not be sending the expected rejection'));
+        } else {
+          done(err);
+        }
+      });
+    });
+
+    req.write(largePayload);
+    req.end();
+  });
 });
