@@ -95,7 +95,11 @@ function buildMcpRegistrationTargets(homeDir) {
 /**
  * Merges egc-guardian / egc-memory into a JSON mcpServers config, preserving
  * whatever else is already in the file. Returns true if the file was
- * created/changed, false if both entries were already present.
+ * created/changed, false if both entries were already present (a legitimate,
+ * silent no-op). Throws if the existing file can't be parsed as JSON -
+ * that's not a no-op, it's a reason the config wasn't touched, and the two
+ * need to stay distinguishable so a caller can warn on one and stay quiet
+ * on the other.
  */
 function registerJson(targetPath, bins) {
   const { guardianBin, memoryBin } = bins;
@@ -104,7 +108,7 @@ function registerJson(targetPath, bins) {
     try {
       obj = JSON.parse(fs.readFileSync(targetPath, 'utf8'));
     } catch (_) {
-      return false;
+      throw new Error(`existing file at ${targetPath} is not valid JSON - left untouched`);
     }
   }
   if (!obj.mcpServers) obj.mcpServers = {};
@@ -124,6 +128,19 @@ function registerJson(targetPath, bins) {
 }
 
 /**
+ * Escapes a path for use inside a TOML basic (double-quoted) string.
+ * Backslashes are the only character we need to worry about here since
+ * bin paths never contain control characters or unescaped quotes - but an
+ * unescaped backslash matters a lot: TOML reserves "\U" for an 8-hex-digit
+ * Unicode escape, so a raw Windows path like C:\Users\... silently corrupts
+ * the file (or fails to parse) the moment a backslash happens to precede a
+ * hex-ish character.
+ */
+function tomlEscape(p) {
+  return p.replace(/\\/g, '\\\\');
+}
+
+/**
  * Same idea as registerJson but for TOML configs (Codex CLI). Returns true
  * if the file was appended to, false if both entries were already present.
  */
@@ -132,11 +149,11 @@ function registerToml(targetPath, bins) {
   let content = fs.existsSync(targetPath) ? fs.readFileSync(targetPath, 'utf8') : '';
   let appended = false;
   if (!content.includes('"egc-guardian"') && !content.includes("'egc-guardian'")) {
-    content += `\n[[mcp_servers]]\nname = "egc-guardian"\ncommand = "node"\nargs = ["${guardianBin}"]\n`;
+    content += `\n[[mcp_servers]]\nname = "egc-guardian"\ncommand = "node"\nargs = ["${tomlEscape(guardianBin)}"]\n`;
     appended = true;
   }
   if (!content.includes('"egc-memory"') && !content.includes("'egc-memory'")) {
-    content += `\n[[mcp_servers]]\nname = "egc-memory"\ncommand = "node"\nargs = ["${memoryBin}"]\n`;
+    content += `\n[[mcp_servers]]\nname = "egc-memory"\ncommand = "node"\nargs = ["${tomlEscape(memoryBin)}"]\n`;
     appended = true;
   }
   if (!appended) return false;
@@ -174,7 +191,11 @@ function registerContinueYaml(targetDir, bins) {
       '  - name: egc-guardian',
       '    command: node',
       '    args:',
-      `      - ${guardianBin}`,
+      // JSON.stringify produces a double-quoted scalar with the backslash/
+      // quote escaping YAML expects. Needed because a bare scalar breaks on
+      // paths containing "#" (starts a comment) or ": " (a mapping
+      // separator) - both legal in a directory name.
+      `      - ${JSON.stringify(guardianBin)}`,
       '',
     ].join('\n'),
     'egc-memory.yaml': [
@@ -185,7 +206,7 @@ function registerContinueYaml(targetDir, bins) {
       '  - name: egc-memory',
       '    command: node',
       '    args:',
-      `      - ${memoryBin}`,
+      `      - ${JSON.stringify(memoryBin)}`,
       '',
     ].join('\n'),
   };
@@ -221,14 +242,15 @@ function registerMcpServers(homeDir, bins, callbacks = {}) {
       continue;
     }
     try {
+      let registered = false;
       if (target.format === 'json') {
-        registerJson(target.path, bins);
+        registered = registerJson(target.path, bins);
       } else if (target.format === 'toml') {
-        registerToml(target.path, bins);
+        registered = registerToml(target.path, bins);
       } else if (target.format === 'continue-yaml') {
-        registerContinueYaml(target.path, bins);
+        registered = registerContinueYaml(target.path, bins);
       }
-      if (onRegister) onRegister(target);
+      if (registered && onRegister) onRegister(target);
     } catch (err) {
       if (onWarn) onWarn(target, err);
     }

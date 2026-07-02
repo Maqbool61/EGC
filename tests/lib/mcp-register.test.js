@@ -138,16 +138,18 @@ function runTests() {
     fs.rmSync(tmpHome, { recursive: true, force: true });
   }) ? passed++ : failed++);
 
-  (test('registerJson leaves the file untouched if it contains invalid JSON', () => {
+  (test('registerJson throws (not returns false) on unparseable existing content', () => {
     const tmpHome = makeTempDir();
     const dir = path.join(tmpHome, '.cursor');
     fs.mkdirSync(dir, { recursive: true });
     const target = path.join(dir, 'mcp.json');
     fs.writeFileSync(target, 'not valid json {{{');
 
-    const changed = registerJson(target, bins);
-
-    assert.strictEqual(changed, false, 'should not report a change on unparseable existing file');
+    // Throwing (rather than quietly returning false) matters: false is
+    // also the return value for "already fully registered, nothing to do",
+    // and the orchestrator needs to tell those two apart to know whether
+    // to warn.
+    assert.throws(() => registerJson(target, bins), /not valid JSON/);
     assert.strictEqual(fs.readFileSync(target, 'utf8'), 'not valid json {{{', 'existing content should be untouched, not clobbered');
 
     fs.rmSync(tmpHome, { recursive: true, force: true });
@@ -167,6 +169,51 @@ function runTests() {
     const content = fs.readFileSync(target, 'utf8');
     assert.ok(content.includes('name = "egc-guardian"'));
     assert.ok(content.includes('name = "egc-memory"'));
+
+    fs.rmSync(tmpHome, { recursive: true, force: true });
+  }) ? passed++ : failed++);
+
+  (test('registerToml escapes backslashes in Windows-style bin paths', () => {
+    const tmpHome = makeTempDir();
+    const target = path.join(tmpHome, '.codex', 'config.toml');
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, '');
+    const winPath = 'C:\\Users\\person\\egc\\mcp\\servers\\egc-guardian\\build\\index.js';
+
+    registerToml(target, { guardianBin: winPath, memoryBin: bins.memoryBin });
+
+    const content = fs.readFileSync(target, 'utf8');
+    // "\U" is reserved in TOML for an 8-hex-digit Unicode escape - a raw,
+    // unescaped backslash from a Windows path breaks the string the moment
+    // it's followed by a hex-ish character (as "\Users" would be here).
+    assert.ok(
+      content.includes('C:\\\\Users\\\\person\\\\egc\\\\mcp\\\\servers\\\\egc-guardian\\\\build\\\\index.js'),
+      'backslashes should be doubled for a valid TOML basic string'
+    );
+
+    fs.rmSync(tmpHome, { recursive: true, force: true });
+  }) ? passed++ : failed++);
+
+  (test('registerToml output (including Windows paths) parses with a real TOML parser', () => {
+    let TOML;
+    try {
+      TOML = require('@iarna/toml');
+    } catch (_) {
+      console.log('    (skipped: @iarna/toml not installed)');
+      return;
+    }
+
+    const tmpHome = makeTempDir();
+    const target = path.join(tmpHome, '.codex', 'config.toml');
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, '');
+    const winPath = 'C:\\Users\\person\\egc-guardian\\index.js';
+
+    registerToml(target, { guardianBin: winPath, memoryBin: bins.memoryBin });
+
+    const parsed = TOML.parse(fs.readFileSync(target, 'utf8'));
+    const guardianEntry = parsed.mcp_servers.find(s => s.name === 'egc-guardian');
+    assert.strictEqual(guardianEntry.args[0], winPath, 'path should round-trip exactly through a real TOML parser');
 
     fs.rmSync(tmpHome, { recursive: true, force: true });
   }) ? passed++ : failed++);
@@ -225,6 +272,51 @@ function runTests() {
     assert.strictEqual(changed, true, 'a changed bin path should be treated as a real change');
     const guardianContent = fs.readFileSync(path.join(targetDir, 'egc-guardian.yaml'), 'utf8');
     assert.ok(guardianContent.includes('/new/path/egc-guardian/index.js'));
+
+    fs.rmSync(tmpHome, { recursive: true, force: true });
+  }) ? passed++ : failed++);
+
+  (test('registerContinueYaml double-quotes bin paths with YAML-special characters', () => {
+    const tmpHome = makeTempDir();
+    const targetDir = path.join(tmpHome, '.continue', 'mcpServers');
+    // "#" starts a YAML comment, ": " is a mapping key/value separator -
+    // both are legal in a real directory name and both break a bare
+    // (unquoted) scalar.
+    const trickyPath = '/home/person/my #projects/egc: guardian/index.js';
+
+    registerContinueYaml(targetDir, { guardianBin: trickyPath, memoryBin: bins.memoryBin });
+
+    const content = fs.readFileSync(path.join(targetDir, 'egc-guardian.yaml'), 'utf8');
+    assert.ok(
+      content.includes(`      - ${JSON.stringify(trickyPath)}`),
+      'path should be wrapped in a double-quoted scalar, not inserted bare'
+    );
+
+    fs.rmSync(tmpHome, { recursive: true, force: true });
+  }) ? passed++ : failed++);
+
+  (test('registerContinueYaml output with tricky characters round-trips through the real Continue parser', () => {
+    let parseBlock;
+    try {
+      parseBlock = require('@continuedev/config-yaml').parseBlock;
+    } catch (_) {
+      console.log('    (skipped: @continuedev/config-yaml not installed)');
+      return;
+    }
+
+    const tmpHome = makeTempDir();
+    const targetDir = path.join(tmpHome, '.continue', 'mcpServers');
+    const trickyPath = '/home/person/my #projects/egc: guardian/index.js';
+
+    registerContinueYaml(targetDir, { guardianBin: trickyPath, memoryBin: bins.memoryBin });
+
+    const content = fs.readFileSync(path.join(targetDir, 'egc-guardian.yaml'), 'utf8');
+    const parsed = parseBlock(content);
+    assert.strictEqual(
+      parsed.mcpServers[0].args[0],
+      trickyPath,
+      'path should round-trip exactly through the real block schema parser'
+    );
 
     fs.rmSync(tmpHome, { recursive: true, force: true });
   }) ? passed++ : failed++);
@@ -305,6 +397,61 @@ function runTests() {
 
     assert.ok(skipped.includes('Continue.dev'));
     assert.ok(!fs.existsSync(path.join(tmpHome, '.continue', 'mcpServers')), 'dry-run must not write any files');
+
+    fs.rmSync(tmpHome, { recursive: true, force: true });
+  }) ? passed++ : failed++);
+
+  // Regression guard for the P1 fix: onRegister must never fire when
+  // nothing was actually written. A gated target (Cursor) whose existing
+  // config is unparseable should report through onWarn instead, and the
+  // file must be left alone rather than overwritten.
+  (test('registerMcpServers calls onWarn (not onRegister) when an existing JSON target is broken', () => {
+    const tmpHome = makeTempDir();
+    const dir = path.join(tmpHome, '.cursor');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'mcp.json'), 'not valid json {{{');
+
+    const registered = [];
+    const warned = [];
+    registerMcpServers(tmpHome, bins, {
+      dryRun: false,
+      onRegister: (target) => registered.push(target.name),
+      onWarn: (target) => warned.push(target.name),
+    });
+
+    assert.ok(!registered.includes('Cursor'), 'onRegister must not fire when nothing was written');
+    assert.ok(warned.includes('Cursor'), 'onWarn should fire so the failure is not silent');
+    assert.strictEqual(
+      fs.readFileSync(path.join(dir, 'mcp.json'), 'utf8'),
+      'not valid json {{{',
+      'broken file must be left untouched, not overwritten'
+    );
+
+    fs.rmSync(tmpHome, { recursive: true, force: true });
+  }) ? passed++ : failed++);
+
+  // The other side of the same fix: a target that's already fully
+  // registered is a legitimate no-op, not a failure, and must stay
+  // silent - re-running `egc init` on an already-set-up machine shouldn't
+  // print a warning for every tool that's already correctly configured.
+  (test('registerMcpServers stays silent (no onRegister, no onWarn) on an already-registered target', () => {
+    const tmpHome = makeTempDir();
+    const dir = path.join(tmpHome, '.cursor');
+    fs.mkdirSync(dir, { recursive: true });
+    // Pre-register by calling registerJson directly, simulating a second
+    // `egc init` run on a machine that's already set up.
+    registerJson(path.join(dir, 'mcp.json'), bins);
+
+    const registered = [];
+    const warned = [];
+    registerMcpServers(tmpHome, bins, {
+      dryRun: false,
+      onRegister: (target) => registered.push(target.name),
+      onWarn: (target) => warned.push(target.name),
+    });
+
+    assert.ok(!registered.includes('Cursor'), 'nothing changed, so onRegister should not fire again');
+    assert.ok(!warned.includes('Cursor'), 'an already-registered target is not an error and should not warn');
 
     fs.rmSync(tmpHome, { recursive: true, force: true });
   }) ? passed++ : failed++);
