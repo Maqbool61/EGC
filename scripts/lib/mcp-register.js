@@ -107,8 +107,11 @@ function registerJson(targetPath, bins) {
   if (fs.existsSync(targetPath)) {
     try {
       obj = JSON.parse(fs.readFileSync(targetPath, 'utf8'));
-    } catch (_) {
-      throw new Error(`existing file at ${targetPath} is not valid JSON - left untouched`);
+    } catch (err) {
+      if (err instanceof SyntaxError) {
+        throw new Error(`existing file at ${targetPath} is not valid JSON - left untouched: ${err.message}`);
+      }
+      throw err;
     }
   }
   if (!obj.mcpServers) obj.mcpServers = {};
