@@ -29,14 +29,25 @@ function post(ev) {
 function findCopilotLog(dir) {
   if (!fs.existsSync(dir)) return null;
   try {
+    let newestFile = null;
+    let newestMtime = -1;
     const entries = fs.readdirSync(dir, {withFileTypes:true});
     for (const e of entries) {
-      if (e.isDirectory()) {
-        const sub = path.join(dir, e.name);
-        const files = fs.readdirSync(sub).filter(f=>f.includes('copilot') || f.includes('github'));
-        if (files.length) return path.join(sub, files[0]);
+      if(!e.isDirectory()) continue;
+      const sub = path.join(dir, e.name);
+      const files = fs.readdirSync(sub).filter(f=>f.includes('copilot') || f.includes('github'));
+      for(const f of files) {
+        const fPath = path.join(sub, f);
+        try {
+          const mtimeMs = fs.statSync(path.join(sub, f)).mtimeMs;
+          if (mtimeMs > newestMtime) {
+            newestFile = fPath;
+            newestMtime = mtimeMs;
+          }
+        } catch (_) {}    
       }
     }
+    return newestFile;
   } catch(_) {}
   return null;
 }
