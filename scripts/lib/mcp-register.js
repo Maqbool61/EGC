@@ -109,7 +109,7 @@ function registerJson(targetPath, bins) {
       obj = JSON.parse(fs.readFileSync(targetPath, 'utf8'));
     } catch (err) {
       if (err instanceof SyntaxError) {
-        throw new Error(`existing file at ${targetPath} is not valid JSON - left untouched: ${err.message}`);
+        throw new Error(`existing file at ${targetPath} is not valid JSON - left untouched: ${err.message}`, { cause: err });
       }
       throw err;
     }
