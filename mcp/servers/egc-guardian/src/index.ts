@@ -99,11 +99,13 @@ class PersistentLogger {
         if (stats.size > this.maxSizeBytes) {
            await fs.promises.rename(this.logPath, `${this.logPath}.${Date.now()}.bak`);
         }
-      } catch (e) {
+      } catch (_e) {
         // file might not exist
       }
       await fs.promises.appendFile(this.logPath, payload + '\n', 'utf-8');
-    } catch(e) {}
+    } catch(err) {
+      console.error('[EGC Guardian] PersistentLogger failed to write:', err);
+    }
   }
 }
 
@@ -137,8 +139,6 @@ const ReduceContextSchema = z.object({
 const OrchestrateTaskSchema = z.object({
   prompt: z.string(),
   filepaths: z.array(z.string()).optional().default([]),
-  agents: z.array(z.string()).optional().default([]),
-  skills: z.array(z.string()).optional().default([]),
   heuristic_sandbox_id: z.string().optional()
 });
 
@@ -166,9 +166,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           type: "object",
           properties: {
              prompt: { type: "string" },
-             filepaths: { type: "array", items: { type: "string" } },
-             agents: { type: "array", items: { type: "string" } },
-             skills: { type: "array", items: { type: "string" } }
+             filepaths: { type: "array", items: { type: "string" } }
           },
           required: ["prompt"]
         }
@@ -339,10 +337,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case "orchestrate_task": {
-        const prompt = request.params.arguments?.prompt as string;
-        const agents: string[] = (request.params.arguments?.agents ?? []) as string[];
-        const skills: string[] = (request.params.arguments?.skills ?? []) as string[];
-        const files: string[] = (request.params.arguments?.filepaths ?? []) as string[];
+        const parsed = OrchestrateTaskSchema.parse(request.params.arguments);
+        const prompt = parsed.prompt;
+        const files: string[] = parsed.filepaths ?? [];
 
         // Read any provided file payloads
         const rawPayloads: string[] = [];
@@ -351,7 +348,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             const abs = path.resolve(filePath);
             const realAbs = fs.realpathSync(abs);
             if (!isProtectedPath(realAbs)) rawPayloads.push(fs.readFileSync(realAbs, 'utf8'));
-          } catch {}
+          } catch (err) {
+            console.error(`[EGC guardian] Failed to read file ${filePath}:`, err);
+          }
         }
 
         const pipeline = runCompressionPipeline(rawPayloads);
