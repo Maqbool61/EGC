@@ -37,9 +37,7 @@ export function loadOrCreateEncKey(keyPath: string = ENC_KEY_PATH): Buffer {
     // directory may already exist
   }
 
-  if (fs.existsSync(keyPath)) {
-    // Key file exists — load it. Do NOT silently regenerate on error;
-    // that would destroy access to all previously encrypted state files.
+  const readExistingKey = (): Buffer => {
     const hex = fs.readFileSync(keyPath, 'utf-8').trim();
     const key = Buffer.from(hex, 'hex');
     if (key.length !== 32) {
@@ -47,18 +45,44 @@ export function loadOrCreateEncKey(keyPath: string = ENC_KEY_PATH): Buffer {
     }
     try { fs.chmodSync(keyPath, 0o600); } catch { /* best-effort */ }
     return key;
+  };
+
+  if (fs.existsSync(keyPath)) {
+    // Key file exists — load it. Do NOT silently regenerate on error;
+    // that would destroy access to all previously encrypted state files.
+    return readExistingKey();
   }
 
-  // Key file does not exist — generate a fresh one.
+  try { fs.chmodSync(dir, 0o700); } catch { /* best-effort */ }
+
+  // Key file does not exist — generate a fresh one. A concurrent process
+  // (e.g. a background agent's own egc-memory process starting up before
+  // ~/.egc/encryption.key exists) may be racing to create the same key.
+  // Writing directly to keyPath with an exclusive flag would leave a window
+  // where the file exists but is only partially written, so a racing reader
+  // could observe a truncated key. Instead, write the full key to a
+  // uniquely-named temp file first, then publish it with an exclusive
+  // fs.linkSync: the target only ever appears once fully written, and
+  // linkSync fails with EEXIST (without touching the target) if another
+  // process already published its key first — in which case we discard our
+  // own key and read back whichever one actually landed on disk.
   const key = crypto.randomBytes(32);
+  const tmpPath = `${keyPath}.tmp-${process.pid}-${crypto.randomBytes(4).toString('hex')}`;
   try {
-    fs.chmodSync(dir, 0o700);
-    fs.writeFileSync(keyPath, key.toString('hex'), { encoding: 'utf-8', mode: 0o600 });
-    fs.chmodSync(keyPath, 0o600);
-  } catch (e) {
-    throw new Error(`[EGC encryption] Failed to persist encryption key to ${keyPath}: ${String(e)}. Remove the file or fix permissions and restart.`);
+    fs.writeFileSync(tmpPath, key.toString('hex'), { encoding: 'utf-8', mode: 0o600 });
+    try {
+      fs.linkSync(tmpPath, keyPath);
+      fs.chmodSync(keyPath, 0o600);
+      return key;
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code === 'EEXIST') {
+        return readExistingKey();
+      }
+      throw new Error(`[EGC encryption] Failed to persist encryption key to ${keyPath}: ${String(e)}. Remove the file or fix permissions and restart.`);
+    }
+  } finally {
+    try { fs.unlinkSync(tmpPath); } catch { /* best-effort cleanup */ }
   }
-  return key;
 }
 
 /**
