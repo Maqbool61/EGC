@@ -71,6 +71,43 @@ function post(ev, done) {
   req.end(body);
 }
 
+// The Claude Code Stop hook payload does not include usage or model.
+// Extract them from the last assistant message in the transcript JSONL.
+const SAFE_TRANSCRIPT_ROOTS = [
+  path.join(os.homedir(), '.claude', 'projects'),
+];
+const MAX_TRANSCRIPT_TAIL = 64 * 1024; // read at most 64 KB from end
+
+function readTranscriptLast(transcriptPath) {
+  if (typeof transcriptPath !== 'string' || !transcriptPath) return {};
+  const resolved = path.resolve(transcriptPath);
+  if (!SAFE_TRANSCRIPT_ROOTS.some(r => resolved.startsWith(r + path.sep) || resolved.startsWith(r + '/'))) return {};
+  try {
+    const real = fs.realpathSync(resolved);
+    if (!SAFE_TRANSCRIPT_ROOTS.some(r => real.startsWith(r + path.sep) || real.startsWith(r + '/'))) return {};
+  } catch { return {}; }
+  try {
+    const stat = fs.statSync(resolved);
+    const readSize = Math.min(stat.size, MAX_TRANSCRIPT_TAIL);
+    const offset = stat.size - readSize;
+    const buf = Buffer.alloc(readSize);
+    const fd = fs.openSync(resolved, 'r');
+    fs.readSync(fd, buf, 0, readSize, offset);
+    fs.closeSync(fd);
+    const lines = buf.toString('utf8').split('\n').filter(Boolean);
+    for (let i = lines.length - 1; i >= 0; i--) {
+      let entry;
+      try { entry = JSON.parse(lines[i]); } catch { continue; }
+      const msg = entry.message || entry;
+      const usage = msg.usage;
+      if (usage && typeof usage.input_tokens === 'number') {
+        return { usage, model: typeof msg.model === 'string' ? msg.model : null };
+      }
+    }
+  } catch { /* unreadable or missing transcript */ }
+  return {};
+}
+
 function main() {
   let raw = '';
   try {
@@ -95,6 +132,8 @@ function main() {
     ? { ...input, promptForAssistant: prompt }
     : { ...input };
 
+  const transcript = readTranscriptLast(input.transcript_path);
+
   // Write the assistant prompt to stdout first (synchronous, always completes).
   // Then post the session_end event and exit only after the dashboard has
   // acknowledged it (or the 300ms timeout fires). This prevents process.exit()
@@ -106,7 +145,8 @@ function main() {
     agent: 'main',
     session_id: input.session_id,
     stop_reason: input.stop_reason || null,
-    usage: input.usage || null,
+    model: input.model || transcript.model || null,
+    usage: input.usage || transcript.usage || null,
   }, () => process.exit(0));
 }
 
