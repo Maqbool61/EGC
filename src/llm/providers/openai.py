@@ -21,6 +21,7 @@ from llm.core.interface import (
 )
 from llm.core.types import LLMInput, LLMOutput, Message, ModelInfo, ProviderType, ToolCall
 from llm.core.model_resolver import ModelResolver
+from llm.core.redact import redact_secrets
 
 
 class OpenAIProvider(LLMProvider):
@@ -105,25 +106,39 @@ class OpenAIProvider(LLMProvider):
                         )
                     )
 
+            # Some responses omit usage entirely (observed on certain
+            # proxy/gateway responses upstream of this provider). Missing
+            # usage stats are a lesser problem than an unclassified
+            # AttributeError bypassing the 401/429/context-length mapping
+            # below — degrade to zeros rather than crash.
+            usage = response.usage
             return LLMOutput(
                 content=choice.message.content or "",
                 tool_calls=tool_calls,
                 model=response.model,
                 usage={
-                    "prompt_tokens": response.usage.prompt_tokens,
-                    "completion_tokens": response.usage.completion_tokens,
-                    "total_tokens": response.usage.total_tokens,
+                    "prompt_tokens": getattr(usage, "prompt_tokens", 0) or 0,
+                    "completion_tokens": getattr(usage, "completion_tokens", 0) or 0,
+                    "total_tokens": getattr(usage, "total_tokens", 0) or 0,
                 },
                 stop_reason=choice.finish_reason,
             )
         except Exception as e:
             msg = str(e)
+            # openai SDK exceptions (APIStatusError and friends) can embed
+            # the raw HTTP response body in their message, which may echo
+            # request headers/payloads back — redact before it reaches
+            # LLMError, which downstream code may log or persist verbatim.
+            # Classification below runs on the original msg (a recognizable
+            # secret pattern could in principle overlap "401"/"rate_limit",
+            # so redact only what actually gets stored in the exception).
+            safe_msg = redact_secrets(msg)
             if "401" in msg or "authentication" in msg.lower():
-                raise AuthenticationError(msg, provider=self.provider_type) from e
+                raise AuthenticationError(safe_msg, provider=self.provider_type) from e
             if "429" in msg or "rate_limit" in msg.lower():
-                raise RateLimitError(msg, provider=self.provider_type) from e
+                raise RateLimitError(safe_msg, provider=self.provider_type) from e
             if "context" in msg.lower() and "length" in msg.lower():
-                raise ContextLengthError(msg, provider=self.provider_type) from e
+                raise ContextLengthError(safe_msg, provider=self.provider_type) from e
             raise
 
     def list_models(self) -> list[ModelInfo]:

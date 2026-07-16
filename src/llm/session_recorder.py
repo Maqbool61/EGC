@@ -4,10 +4,21 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
+from llm.core.redact import redact_secrets as _redact_secrets
 from llm.paths import egc_observations_path, project_id, project_root
 from llm.session_paths import session_root
 
 logger = logging.getLogger("session_recorder")
+
+# observations.jsonl is plaintext on disk (unlike ~/.egc/state, which is
+# AES-256-GCM encrypted) because it's a best-effort tee for the
+# continuous-learning observer, not the durable memory store. But a tool
+# call's raw command/output can legitimately contain a credential a user
+# typed for debugging (e.g. `export DEEPSEEK_API_KEY=sk-...`), so redact
+# recognizable secret shapes before writing rather than assuming none will
+# ever appear. See llm.core.redact for the pattern list (shared with the
+# provider error-mapping paths, which face the same class of leak from raw
+# SDK exception text).
 
 # Event types worth teeing into the continuous-learning observations log
 # (governance vetoes, mutations, tool results, failures, retries, corrections).
@@ -108,9 +119,9 @@ class SessionRecorder:
             }
 
             if obs_event == "tool_start":
-                obs["input"] = json.dumps(data.get("params") or data.get("tool_input") or {})[:5000]
+                obs["input"] = _redact_secrets(json.dumps(data.get("params") or data.get("tool_input") or {})[:5000])
             elif obs_event == "tool_complete":
-                obs["output"] = str(data.get("result") or data.get("tool_output") or "")[:5000]
+                obs["output"] = _redact_secrets(str(data.get("result") or data.get("tool_output") or "")[:5000])
 
             with open(path, "a", encoding="utf-8") as f:
                 f.write(json.dumps(obs) + "\n")

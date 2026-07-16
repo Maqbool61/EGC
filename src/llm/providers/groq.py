@@ -19,6 +19,7 @@ except ImportError:  # pragma: no cover - SDK optional
 
 from llm.core.interface import AuthenticationError, LLMError, LLMProvider
 from llm.core.model_resolver import ModelResolver
+from llm.core.redact import redact_secrets
 from llm.core.types import ModelInfo, ProviderType
 from llm.providers.openai import OpenAIProvider
 
@@ -54,18 +55,20 @@ class GroqProvider(OpenAIProvider):
         try:
             return super().generate(llm_input)
         except LLMError as exc:
-            # Re-tag LLMErrors so telemetry sees ProviderType.GROQ.
-            raise LLMError(
-                str(exc),
-                provider=ProviderType.GROQ,
-            ) from exc
+            # Re-tag in place so telemetry attributes to GROQ, while
+            # preserving the original exception subclass (AuthenticationError,
+            # RateLimitError, ContextLengthError, ...) — constructing a new
+            # plain LLMError here would discard that subclass information.
+            exc.provider = ProviderType.GROQ
+            raise
         except Exception as exc:
             # Native OpenAI SDK exceptions (RateLimitError, APIConnectionError,
             # AuthenticationError, etc.) propagate here unwrapped when
             # OpenAIProvider.generate() hits the bare `raise`. Wrap them so
-            # telemetry always attributes to GROQ, never OPENAI.
+            # telemetry always attributes to GROQ, never OPENAI. Redacted:
+            # a raw SDK exception message can embed the HTTP response body.
             raise LLMError(
-                str(exc),
+                redact_secrets(str(exc)),
                 provider=ProviderType.GROQ,
             ) from exc
 

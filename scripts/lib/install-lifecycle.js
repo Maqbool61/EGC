@@ -145,24 +145,6 @@ function parseJsonLikeValue(value, label) {
   throw new Error(`Invalid ${label}: expected JSON-compatible data`);
 }
 
-function getOperationTextContent(operation) {
-  const candidateKeys = [
-    'renderedContent',
-    'content',
-    'managedContent',
-    'expectedContent',
-    'templateOutput',
-  ];
-
-  for (const key of candidateKeys) {
-    if (typeof operation[key] === 'string') {
-      return operation[key];
-    }
-  }
-
-  return null;
-}
-
 function getOperationJsonPayload(operation) {
   const candidateKeys = [
     'mergePayload',
@@ -364,17 +346,6 @@ function executeRepairOperation(repoRoot, operation) {
     return;
   }
 
-  if (operation.kind === 'render-template') {
-    const renderedContent = getOperationTextContent(operation);
-    if (renderedContent === null) {
-      throw new Error(`Missing rendered content for repair: ${operation.destinationPath}`);
-    }
-
-    ensureParentDir(operation.destinationPath);
-    fs.writeFileSync(operation.destinationPath, renderedContent);
-    return;
-  }
-
   if (operation.kind === 'merge-json') {
     const payload = getOperationJsonPayload(operation);
     if (payload === undefined) {
@@ -412,7 +383,15 @@ function executeRepairOperation(repoRoot, operation) {
     const existingContent = fs.existsSync(operation.destinationPath)
       ? fs.readFileSync(operation.destinationPath, 'utf8')
       : null;
-    const nextContent = mergeAiderConfigReadList(existingContent, operation.readEntry);
+    let nextContent;
+    try {
+      nextContent = mergeAiderConfigReadList(existingContent, operation.readEntry);
+    } catch (error) {
+      throw new Error(
+        `Failed to parse Aider config at ${operation.destinationPath}: ${error.message}`,
+        { cause: error },
+      );
+    }
     ensureParentDir(operation.destinationPath);
     fs.writeFileSync(operation.destinationPath, nextContent);
     return;
@@ -454,20 +433,6 @@ function restorePreviousContent(operation) {
 }
 
 function uninstallCopyFile(operation) {
-  if (!fs.existsSync(operation.destinationPath)) {
-    return { removedPaths: [], cleanupTargets: [] };
-  }
-  fs.rmSync(operation.destinationPath, { force: true });
-  return {
-    removedPaths: [operation.destinationPath],
-    cleanupTargets: [operation.destinationPath],
-  };
-}
-
-function uninstallRenderTemplate(operation) {
-  const restored = restorePreviousContent(operation);
-  if (restored) return restored;
-
   if (!fs.existsSync(operation.destinationPath)) {
     return { removedPaths: [], cleanupTargets: [] };
   }
@@ -568,7 +533,6 @@ function uninstallClaudeSettingsHook(operation) {
 
 const UNINSTALL_HANDLERS = {
   'copy-file': uninstallCopyFile,
-  'render-template': uninstallRenderTemplate,
   'merge-json': uninstallMergeJson,
   'remove': uninstallRemove,
   [HOOK_OPERATION_KIND]: uninstallClaudeSettingsHook,
@@ -606,17 +570,6 @@ function inspectCopyFileOperation(repoRoot, operation, destinationPath) {
   return inspectResult('ok', operation, destinationPath, { sourcePath });
 }
 
-function inspectRenderTemplateOperation(operation, destinationPath) {
-  const renderedContent = getOperationTextContent(operation);
-  if (renderedContent === null) {
-    return inspectResult('unverified', operation, destinationPath);
-  }
-  if (readFileUtf8(destinationPath) !== renderedContent) {
-    return inspectResult('drifted', operation, destinationPath);
-  }
-  return inspectResult('ok', operation, destinationPath);
-}
-
 function inspectMergeJsonOperation(operation, destinationPath) {
   const payload = getOperationJsonPayload(operation);
   if (payload === undefined) {
@@ -628,6 +581,42 @@ function inspectMergeJsonOperation(operation, destinationPath) {
       return inspectResult('drifted', operation, destinationPath);
     }
   } catch (_error) {
+    return inspectResult('drifted', operation, destinationPath);
+  }
+  return inspectResult('ok', operation, destinationPath);
+}
+
+// Both Aider (YAML read-list) and Warp (markdown skill-index) merges are
+// idempotent upserts: re-running the same merge against already-correct
+// content reproduces that content unchanged. That makes drift detection a
+// straight before/after comparison, without needing a second, parallel
+// "is this entry present" implementation to keep in sync with the merge
+// logic used for repair.
+function inspectAiderConfigReadListOperation(operation, destinationPath) {
+  if (!operation.readEntry) {
+    return inspectResult('unverified', operation, destinationPath);
+  }
+  const existingContent = readFileUtf8(destinationPath);
+  let nextContent;
+  try {
+    nextContent = mergeAiderConfigReadList(existingContent, operation.readEntry);
+  } catch (_error) {
+    return inspectResult('drifted', operation, destinationPath);
+  }
+  if (nextContent !== existingContent) {
+    return inspectResult('drifted', operation, destinationPath);
+  }
+  return inspectResult('ok', operation, destinationPath);
+}
+
+function inspectWarpAgentsIndexOperation(operation, destinationPath) {
+  const existingContent = readFileUtf8(destinationPath);
+  const nextContent = mergeSkillIndexEntry(existingContent, {
+    name: operation.skillName,
+    description: operation.skillDescription,
+    relativePath: operation.relativePath,
+  });
+  if (nextContent !== existingContent) {
     return inspectResult('drifted', operation, destinationPath);
   }
   return inspectResult('ok', operation, destinationPath);
@@ -651,10 +640,6 @@ function inspectManagedOperation(repoRoot, operation) {
     return inspectCopyFileOperation(repoRoot, operation, destinationPath);
   }
 
-  if (operation.kind === 'render-template') {
-    return inspectRenderTemplateOperation(operation, destinationPath);
-  }
-
   if (operation.kind === 'merge-json') {
     return inspectMergeJsonOperation(operation, destinationPath);
   }
@@ -670,6 +655,14 @@ function inspectManagedOperation(repoRoot, operation) {
       return inspectResult(inspectHookEntryFile(destinationPath, PRE_TOOL_USE_EVENT, operation.hookScriptPath, operation.hookMatcher), operation, destinationPath);
     }
     return inspectResult(inspectSessionStartHookFile(destinationPath, operation.hookScriptPath), operation, destinationPath);
+  }
+
+  if (operation.kind === MERGE_YAML_READ_LIST_KIND) {
+    return inspectAiderConfigReadListOperation(operation, destinationPath);
+  }
+
+  if (operation.kind === MERGE_MARKDOWN_INDEX_KIND) {
+    return inspectWarpAgentsIndexOperation(operation, destinationPath);
   }
 
   return inspectResult('unverified', operation, destinationPath);

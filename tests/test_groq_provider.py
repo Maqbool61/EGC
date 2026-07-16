@@ -35,6 +35,17 @@ def test_missing_api_key_raises_authentication_error(monkeypatch: pytest.MonkeyP
 
 
 @pytest.mark.unit
+def test_unauthorized_exception_raises_authentication_error(provider: GroqProvider) -> None:
+    """Regression test for audit EGC-128 (medium): only the client-side
+    missing-key check was covered before this; a real 401 rejection from
+    the API itself had no test for Groq specifically."""
+    provider.client.chat.completions.create.side_effect = RuntimeError("401 unauthorized: invalid api key")
+    with pytest.raises(AuthenticationError) as exc:
+        provider.generate(_simple_input())
+    assert exc.value.provider == ProviderType.GROQ
+
+
+@pytest.mark.unit
 def test_api_key_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("GROQ_API_KEY", "gsk-test-key")
     with patch("llm.providers.groq.OpenAI") as mock_openai:
@@ -139,6 +150,20 @@ def test_native_sdk_exception_is_retagged_as_groq(provider: GroqProvider) -> Non
     surface as LLMError with provider=GROQ, not as bare SDK errors."""
     provider.client.chat.completions.create.side_effect = RuntimeError("connection reset")
     with pytest.raises(LLMError) as exc:
+        provider.generate(_simple_input())
+    assert exc.value.provider == ProviderType.GROQ
+
+
+@pytest.mark.unit
+def test_retagging_preserves_exception_subclass(provider: GroqProvider) -> None:
+    """Regression test for audit EGC-128 F4: re-tagging an already-typed
+    LLMError (AuthenticationError, RateLimitError, ...) by constructing a
+    new plain LLMError(str(exc), provider=...) discards the subclass. The
+    fix mutates .provider on the original exception and re-raises it, so
+    the subclass — and anything a caller might match on via
+    except AuthenticationError — survives re-tagging."""
+    provider.client.chat.completions.create.side_effect = Exception("401 Unauthorized")
+    with pytest.raises(AuthenticationError) as exc:
         provider.generate(_simple_input())
     assert exc.value.provider == ProviderType.GROQ
 

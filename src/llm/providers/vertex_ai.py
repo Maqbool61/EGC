@@ -49,7 +49,10 @@ class VertexAIProvider(GeminiProvider):
         # instead of duplicating registry entries under a second provider key.
         self._default_model = ModelResolver.default_model("gemini")
         self._fallback_chain = ModelResolver.fallback_map(self._default_model)
-        self._models = ModelResolver.model_infos("gemini")
+        # tag_as=VERTEX_AI overrides the registry's own "gemini" provider tag
+        # on the borrowed rows, so callers grouping usage/cost by
+        # ModelInfo.provider don't attribute Vertex AI traffic to Gemini.
+        self._models = ModelResolver.model_infos("gemini", tag_as=ProviderType.VERTEX_AI)
 
     def generate(self, input: LLMInput) -> LLMOutput:  # type: ignore[override]
         try:

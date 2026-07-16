@@ -1,0 +1,230 @@
+/**
+ * Tests for scripts/lib/guardian-bin.js
+ *
+ * Covers the fix for the RCE reported in the 2026-07-15 audit (EGC-128):
+ * a project-local .mcp.json used to be a trusted source for locating the
+ * guardian CLI binary, which let a malicious repo point resolution at a
+ * payload script it shipped alongside a crafted config.
+ */
+
+'use strict';
+
+const assert = require('assert');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+
+function test(name, fn) {
+  try {
+    fn();
+    console.log(`  ✓ ${name}`);
+    return true;
+  } catch (error) {
+    console.log(`  ✗ ${name}`);
+    console.log(`    Error: ${error.message}`);
+    return false;
+  }
+}
+
+function createTempDir(prefix) {
+  return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+}
+
+function withEnv(overrides, fn) {
+  const saved = {};
+  for (const key of Object.keys(overrides)) saved[key] = process.env[key];
+  Object.assign(process.env, overrides);
+  try {
+    return fn();
+  } finally {
+    for (const key of Object.keys(overrides)) {
+      if (saved[key] === undefined) delete process.env[key];
+      else process.env[key] = saved[key];
+    }
+  }
+}
+
+function withCwd(dir, fn) {
+  const saved = process.cwd();
+  process.chdir(dir);
+  try {
+    return fn();
+  } finally {
+    process.chdir(saved);
+  }
+}
+
+function freshGuardianBin() {
+  // guardian-bin.js reads os.homedir() at call time (not at require time),
+  // so a plain require() cache hit is fine across tests as long as HOME is
+  // set before resolveGuardianCli() is invoked.
+  delete require.cache[require.resolve('../../scripts/lib/guardian-bin')];
+  return require('../../scripts/lib/guardian-bin');
+}
+
+function main() {
+  let passed = 0;
+  let failed = 0;
+  function run(name, fn) {
+    if (test(name, fn)) passed++;
+    else failed++;
+  }
+
+  console.log('\nguardian-bin.js — resolveGuardianCli()');
+
+  run('never trusts a project-local .mcp.json (RCE closed)', () => {
+    const fakeHome = createTempDir('egc-guardian-bin-home-');
+    const fakeRepo = createTempDir('egc-guardian-bin-repo-');
+    try {
+      // Payload the "malicious repo" ships: if this ever gets picked up and
+      // executed by callGuardian(), the guardian would have run our binary.
+      const payloadDir = path.join(fakeRepo, 'egc-guardian', 'build');
+      fs.mkdirSync(payloadDir, { recursive: true });
+      fs.writeFileSync(path.join(payloadDir, 'guardian-cli.js'), '// payload\n');
+      fs.writeFileSync(
+        path.join(fakeRepo, '.mcp.json'),
+        JSON.stringify({
+          mcpServers: {
+            'egc-guardian': {
+              command: 'node',
+              args: [path.join(payloadDir, 'index.js')],
+            },
+          },
+        }),
+      );
+
+      // os.homedir() reads USERPROFILE on Windows, not HOME -- both must be
+      // overridden together or the fake home is silently ignored there and
+      // resolution falls through to the real (nonexistent in CI) user home.
+      withEnv({ HOME: fakeHome, USERPROFILE: fakeHome }, () => {
+        withCwd(fakeRepo, () => {
+          // Test fromMcpConfigs() directly, not resolveGuardianCli(): the
+          // full resolution chain would mask this specific check whenever
+          // fromPackageLayout() also succeeds (e.g. running this suite from
+          // an actual EGC checkout with a build present).
+          const { fromMcpConfigs } = freshGuardianBin();
+          const resolved = fromMcpConfigs();
+          assert.notStrictEqual(
+            resolved,
+            path.join(payloadDir, 'guardian-cli.js'),
+            'fromMcpConfigs() picked up the repo-local .mcp.json payload path',
+          );
+        });
+      });
+    } finally {
+      fs.rmSync(fakeHome, { recursive: true, force: true });
+      fs.rmSync(fakeRepo, { recursive: true, force: true });
+    }
+  });
+
+  run('still resolves via a trusted ~/.claude.json entry', () => {
+    const fakeHome = createTempDir('egc-guardian-bin-home-');
+    try {
+      const installDir = path.join(fakeHome, 'somewhere', 'egc-guardian', 'build');
+      fs.mkdirSync(installDir, { recursive: true });
+      fs.writeFileSync(path.join(installDir, 'guardian-cli.js'), '// real cli\n');
+      fs.writeFileSync(
+        path.join(fakeHome, '.claude.json'),
+        JSON.stringify({
+          mcpServers: {
+            'egc-guardian': {
+              command: 'node',
+              args: [path.join(installDir, 'index.js')],
+            },
+          },
+        }),
+      );
+
+      // os.homedir() reads USERPROFILE on Windows, not HOME -- both must be
+      // overridden together or the fake home is silently ignored there and
+      // resolution falls through to the real (nonexistent in CI) user home.
+      withEnv({ HOME: fakeHome, USERPROFILE: fakeHome }, () => {
+        const { fromMcpConfigs } = freshGuardianBin();
+        const resolved = fromMcpConfigs();
+        assert.strictEqual(resolved, path.join(installDir, 'guardian-cli.js'));
+      });
+    } finally {
+      fs.rmSync(fakeHome, { recursive: true, force: true });
+    }
+  });
+
+  run('args-path match no longer depends on path.join\'s platform-specific separator (audit EGC-128)', () => {
+    // The bug this fixes only reproduces when path.join()'s separator (OS-
+    // dependent) differs from the separator already in the config value —
+    // e.g. a '/'-separated config read by a path.join() that would itself
+    // produce '\' (Windows). That specific mismatch can't be forced in a
+    // portable test without mocking the platform-dependent path module
+    // itself, so this checks the actual invariant the fix establishes: the
+    // match no longer goes through path.join() at all, for any separator
+    // style the config value already uses. A forward-slash args path (the
+    // portable, common case, and the shape a synced/cross-OS config would
+    // have) must always match, independent of what OS reads it.
+    const fakeHome = createTempDir('egc-guardian-bin-home-');
+    try {
+      const installDir = path.join(fakeHome, 'somewhere', 'egc-guardian', 'build');
+      fs.mkdirSync(installDir, { recursive: true });
+      fs.writeFileSync(path.join(installDir, 'guardian-cli.js'), '// real cli\n');
+      const forwardSlashIndexJsPath = path.join(installDir, 'index.js').split(path.sep).join('/');
+      fs.writeFileSync(
+        path.join(fakeHome, '.claude.json'),
+        JSON.stringify({
+          mcpServers: {
+            'egc-guardian': {
+              command: 'node',
+              args: [forwardSlashIndexJsPath],
+            },
+          },
+        }),
+      );
+
+      // os.homedir() reads USERPROFILE on Windows, not HOME -- both must be
+      // overridden together or the fake home is silently ignored there and
+      // resolution falls through to the real (nonexistent in CI) user home.
+      withEnv({ HOME: fakeHome, USERPROFILE: fakeHome }, () => {
+        const { fromMcpConfigs } = freshGuardianBin();
+        const resolved = fromMcpConfigs();
+        assert.strictEqual(resolved, path.join(installDir, 'guardian-cli.js'));
+      });
+    } finally {
+      fs.rmSync(fakeHome, { recursive: true, force: true });
+    }
+  });
+
+  run('rejects a ~/.claude.json entry pointing outside the home directory', () => {
+    const fakeHome = createTempDir('egc-guardian-bin-home-');
+    const outsideDir = createTempDir('egc-guardian-bin-outside-');
+    try {
+      const installDir = path.join(outsideDir, 'egc-guardian', 'build');
+      fs.mkdirSync(installDir, { recursive: true });
+      fs.writeFileSync(path.join(installDir, 'guardian-cli.js'), '// outside cli\n');
+      fs.writeFileSync(
+        path.join(fakeHome, '.claude.json'),
+        JSON.stringify({
+          mcpServers: {
+            'egc-guardian': {
+              command: 'node',
+              args: [path.join(installDir, 'index.js')],
+            },
+          },
+        }),
+      );
+
+      // os.homedir() reads USERPROFILE on Windows, not HOME -- both must be
+      // overridden together or the fake home is silently ignored there and
+      // resolution falls through to the real (nonexistent in CI) user home.
+      withEnv({ HOME: fakeHome, USERPROFILE: fakeHome }, () => {
+        const { fromMcpConfigs } = freshGuardianBin();
+        const resolved = fromMcpConfigs();
+        assert.notStrictEqual(resolved, path.join(installDir, 'guardian-cli.js'));
+      });
+    } finally {
+      fs.rmSync(fakeHome, { recursive: true, force: true });
+      fs.rmSync(outsideDir, { recursive: true, force: true });
+    }
+  });
+
+  console.log(`\n${passed} passed, ${failed} failed`);
+  process.exit(failed > 0 ? 1 : 0);
+}
+
+main();

@@ -4,9 +4,45 @@ import os from 'os';
 // Trust level tiers
 export const SAFE_READONLY = ['ls', 'cat', 'grep', 'find', 'stat', 'head', 'git'];
 export const SAFE_DEV = ['npm', 'npx', 'node', 'tsc'];
-export const DANGEROUS = ['rm', 'mv'];
+// dd/shred/truncate have no legitimate small/safe use in an agent workflow
+// (unlike e.g. chmod, which is mostly benign and only dangerous with
+// specific destructive flags — a blanket ban there would be a false-positive
+// magnet, not a security fix). rm/mv are the two most obviously reachable
+// destructive commands; these three round out the same tier now that the
+// allowlist-miss path is advisory-only by design (see validateCommand).
+export const DANGEROUS = ['rm', 'mv', 'dd', 'shred', 'truncate'];
 
 export const SHELL_META_REGEX = /[&|;<>$`\n\r]/;
+
+// find flags that perform an action (delete, run arbitrary commands) rather
+// than just filtering results. These bypass the DANGEROUS ['rm', 'mv'] check
+// entirely because the base command is 'find', which is SAFE_READONLY.
+export const FIND_ACTION_FLAGS = ['-delete', '-exec', '-execdir', '-ok', '-okdir', '-fprintf', '-fls'];
+
+// Interpreters/shells whose inline-eval flags let an agent execute arbitrary
+// code that bypasses every path- and content-based check in this file (the
+// interpreter reads/writes/execs whatever the inline string tells it to,
+// independent of the guardian's allowlist for base commands). Denied
+// regardless of whether the interpreter itself is otherwise allowlisted,
+// because 'allowed to run node' must not imply 'allowed to eval anything'.
+const INLINE_EVAL_COMMANDS: Record<string, string[]> = {
+  node: ['-e', '--eval', '-p', '--print'],
+  nodejs: ['-e', '--eval', '-p', '--print'],
+  python: ['-c'],
+  python2: ['-c'],
+  python3: ['-c'],
+  perl: ['-e', '-E'],
+  ruby: ['-e'],
+  php: ['-r'],
+  bash: ['-c'],
+  sh: ['-c'],
+  zsh: ['-c'],
+  dash: ['-c'],
+  ksh: ['-c'],
+  pwsh: ['-c', '-command', '-Command'],
+  powershell: ['-c', '-command', '-Command'],
+  'powershell.exe': ['-c', '-command', '-Command'],
+};
 
 // Protected file patterns (checked on full path string).
 //
@@ -20,7 +56,11 @@ export const SHELL_META_REGEX = /[&|;<>$`\n\r]/;
 // PR that introduced this comment for the full per-tool research).
 export const PROTECTED_FILE_PATTERNS: RegExp[] = [
   /\.env$/,
-  /\.env\./,
+  // .env.example/.sample/.template are conventionally committed templates
+  // with placeholder values, never real secrets — excluded so they're
+  // readable/writable like any other file. .env.local/.production/.staging
+  // and everything else still match (real per-environment secret files).
+  /\.env\.(?!example$|sample$|template$)/,
   /\.pem$/,
   /\.key$/,
   /\.p12$/,
@@ -49,6 +89,17 @@ export const PROTECTED_FILE_PATTERNS: RegExp[] = [
   // functional and must stay writable once Continue.dev is integrated.
   /\.continue[\\/]\.local$/,
   /\.continue[\\/]\.staging$/,
+  // Shell startup files and git config: not credential stores, but a
+  // write here is a persistence mechanism — code planted here runs on
+  // every new shell (rc files) or every git invocation that hits an
+  // aliased subcommand (gitconfig aliases can run arbitrary shell via
+  // `alias.x = "!sh -c ..."`), long after the current session ends.
+  /(^|[\\/])\.bashrc$/,
+  /(^|[\\/])\.zshrc$/,
+  /(^|[\\/])\.bash_profile$/,
+  /(^|[\\/])\.zprofile$/,
+  /(^|[\\/])\.profile$/,
+  /(^|[\\/])\.gitconfig$/,
 ];
 
 export function buildDeniedPaths(): string[] {
@@ -61,6 +112,14 @@ export function buildDeniedPaths(): string[] {
     path.join(home, '.aws'),
     path.join(home, '.gnupg'),
     path.join(home, '.egc'),
+    // A binary planted here (named e.g. 'git' or 'node') sits ahead of
+    // /usr/bin on most PATH configurations, silently hijacking every
+    // "safe, allowlisted" command this same guardian trusts by name.
+    path.join(home, '.local', 'bin'),
+    // User-level systemd units auto-run on login without any further
+    // action from the agent that planted one — a persistence mechanism
+    // equivalent in effect to a shell rc file.
+    path.join(home, '.config', 'systemd', 'user'),
     // ~/.config is XDG_CONFIG_HOME, shared by many unrelated apps and by
     // OpenCode/Zed's functional (non-secret) config, which EGC itself
     // installs into. Deny only the specific subdirectories confirmed to
@@ -85,13 +144,20 @@ export function buildDeniedPaths(): string[] {
 
 export const DENIED_PATHS: string[] = buildDeniedPaths();
 
-export function isProtectedPath(p: string): boolean {
+// baseDir defaults to process.cwd() (path.resolve's own implicit behavior
+// when given one argument) so existing callers are unaffected. Callers that
+// know the real invocation directory of the command being checked (e.g. the
+// PreToolUse hook, which receives it from the harness on every call) should
+// pass it explicitly -- otherwise a relative path is judged against this
+// process's own cwd, which is not guaranteed to match the shell the command
+// actually runs in.
+export function isProtectedPath(p: string, baseDir: string = process.cwd()): boolean {
   // Expand ~ at the start
   const expanded = p.startsWith('~')
     ? path.join(os.homedir(), p.slice(1))
     : p;
 
-  const normalizedP = path.resolve(expanded);
+  const normalizedP = path.resolve(baseDir, expanded);
 
   for (const denied of DENIED_PATHS) {
     if (normalizedP === denied || normalizedP.startsWith(denied + path.sep)) {
@@ -121,20 +187,22 @@ export interface ValidationResult {
 export function validateCommandArgs(
   baseCommand: string,
   args: string[],
+  cwd?: string,
 ): ValidationResult {
   const allArgs = args.join(' ');
 
   switch (baseCommand) {
     case 'git': {
-      // Block force pushes
-      if (
-        args.includes('--force') ||
-        args.includes('-f') ||
-        (args.includes('push') && (args.includes('--force') || args.includes('-f')))
-      ) {
+      // Block force pushes, including --force-with-lease/--force-if-includes
+      // (startsWith, not includes, so these are caught even though their
+      // second character is '-' and they carry a value after '=').
+      const hasForceFlag = args.some(
+        a => a === '--force' || a === '-f' || a.startsWith('--force-with-lease') || a.startsWith('--force-if-includes'),
+      );
+      if (hasForceFlag) {
         return { allowed: false, reason: 'git force-push is forbidden', trust_level: 'SAFE_READONLY' };
       }
-      // Additional check for combined flags like -fu, --force-with-lease used destructively
+      // Additional check for combined short flags like -fu used destructively
       if (args.includes('push') && args.some(a => /^-[a-zA-Z]*f/.test(a))) {
         return { allowed: false, reason: 'git push with force flag is forbidden', trust_level: 'SAFE_READONLY' };
       }
@@ -161,7 +229,7 @@ export function validateCommandArgs(
 
       if (isRecursive) {
         for (const p of pathArgs) {
-          if (p === '/' || p === home || isProtectedPath(p)) {
+          if (p === '/' || p === home || isProtectedPath(p, cwd)) {
             return {
               allowed: false,
               reason: `grep recursive over protected path '${p}' is forbidden`,
@@ -171,7 +239,7 @@ export function validateCommandArgs(
         }
         // If no explicit path args, grep defaults to '.', which is fine.
         // But if the only non-flag positional IS '/' (i.e., pattern was empty), still block.
-        if (positionalArgs.length === 1 && (positionalArgs[0] === '/' || isProtectedPath(positionalArgs[0]))) {
+        if (positionalArgs.length === 1 && (positionalArgs[0] === '/' || isProtectedPath(positionalArgs[0], cwd))) {
           return {
             allowed: false,
             reason: `grep over protected path '${positionalArgs[0]}' is forbidden`,
@@ -182,7 +250,7 @@ export function validateCommandArgs(
 
       // Even without -r, block explicit protected paths
       for (const p of pathArgs) {
-        if (isProtectedPath(p)) {
+        if (isProtectedPath(p, cwd)) {
           return {
             allowed: false,
             reason: `grep over protected path '${p}' is forbidden`,
@@ -196,7 +264,7 @@ export function validateCommandArgs(
 
     case 'cat': {
       for (const arg of args) {
-        if (!arg.startsWith('-') && isProtectedPath(arg)) {
+        if (!arg.startsWith('-') && isProtectedPath(arg, cwd)) {
           return {
             allowed: false,
             reason: `cat of protected path '${arg}' is forbidden`,
@@ -208,10 +276,22 @@ export function validateCommandArgs(
     }
 
     case 'find': {
+      // -delete/-exec/etc. make find perform an action instead of just
+      // filtering, which reproduces 'rm -rf' through a base command that
+      // isn't in the DANGEROUS list. Deny regardless of path.
+      const actionFlag = args.find(a => FIND_ACTION_FLAGS.includes(a));
+      if (actionFlag) {
+        return {
+          allowed: false,
+          reason: `find with action flag '${actionFlag}' is forbidden (use a read-only find, then a separate reviewed command)`,
+          trust_level: 'DANGEROUS',
+        };
+      }
+
       // First non-flag arg is typically the search root
       const pathArgs = args.filter(a => !a.startsWith('-'));
       for (const p of pathArgs) {
-        if (isProtectedPath(p)) {
+        if (isProtectedPath(p, cwd)) {
           return {
             allowed: false,
             reason: `find over protected path '${p}' is forbidden`,
@@ -227,7 +307,7 @@ export function validateCommandArgs(
     case 'ls': {
       // These are read-only but we still block protected paths
       for (const arg of args) {
-        if (!arg.startsWith('-') && isProtectedPath(arg)) {
+        if (!arg.startsWith('-') && isProtectedPath(arg, cwd)) {
           return {
             allowed: false,
             reason: `${baseCommand} on protected path '${arg}' is forbidden`,
@@ -242,6 +322,33 @@ export function validateCommandArgs(
     case 'npx':
     case 'node':
     case 'tsc': {
+      // node -e/-p can read, write, or exfiltrate anything the process can
+      // touch, including files DENIED_PATHS protects (e.g. the state
+      // encryption key) — inline eval is caught by the interpreter check in
+      // validateCommand, but a defense-in-depth check here means this branch
+      // is still safe even if it's ever reached directly.
+      const evalFlags = INLINE_EVAL_COMMANDS[baseCommand];
+      if (evalFlags && args.some(a => evalFlags.includes(a))) {
+        return {
+          allowed: false,
+          reason: `inline code execution via '${baseCommand}' eval flag is forbidden`,
+          trust_level: 'DANGEROUS',
+        };
+      }
+
+      // Any argument that resolves to a protected path (a script path, a
+      // require target, etc.) is denied the same way 'cat'/'find' deny it —
+      // being in SAFE_DEV means "safe to run", not "exempt from path checks".
+      for (const arg of args) {
+        if (!arg.startsWith('-') && isProtectedPath(arg, cwd)) {
+          return {
+            allowed: false,
+            reason: `${baseCommand} on protected path '${arg}' is forbidden`,
+            trust_level: 'SAFE_DEV',
+          };
+        }
+      }
+
       return { allowed: true, trust_level: 'SAFE_DEV' };
     }
 
@@ -250,7 +357,7 @@ export function validateCommandArgs(
   }
 }
 
-export function validateCommand(command: string): ValidationResult {
+export function validateCommand(command: string, cwd?: string): ValidationResult {
   // 1. Shell metacharacters check
   if (SHELL_META_REGEX.test(command)) {
     return {
@@ -273,7 +380,26 @@ export function validateCommand(command: string): ValidationResult {
     };
   }
 
-  // 3. Not in any allowlist: blocked
+  // 3. Inline code execution (python3 -c, bash -c, node -e, etc.) is a hard
+  // deny, not an allowlist check. This runs before the allowlist-membership
+  // check on purpose: the base command being outside SAFE_READONLY/SAFE_DEV
+  // (e.g. 'python3', 'bash') is only advisory at the enforcement hook layer,
+  // by design, so that legitimate commands outside this tiny allowlist
+  // (docker, pytest, cargo, go...) don't get hard-blocked wholesale. Inline
+  // eval is different: it lets ANY base command execute arbitrary code that
+  // bypasses every other check in this file, so it must hard-block
+  // regardless of allowlist status. Using DANGEROUS here (not BLOCKED) keeps
+  // the reason string out of the hook's advisory-reason list.
+  const evalFlagsForBase = INLINE_EVAL_COMMANDS[baseCommand];
+  if (evalFlagsForBase && args.some(a => evalFlagsForBase.includes(a))) {
+    return {
+      allowed: false,
+      reason: `inline code execution via '${baseCommand}' eval flag is forbidden — write the code to a file and run it instead`,
+      trust_level: 'DANGEROUS',
+    };
+  }
+
+  // 4. Not in any allowlist: blocked
   if (!SAFE_READONLY.includes(baseCommand) && !SAFE_DEV.includes(baseCommand)) {
     return {
       allowed: false,
@@ -282,8 +408,8 @@ export function validateCommand(command: string): ValidationResult {
     };
   }
 
-  // 4. In allowlist: validate args
-  return validateCommandArgs(baseCommand, args);
+  // 5. In allowlist: validate args
+  return validateCommandArgs(baseCommand, args, cwd);
 }
 
 export function validateWrite(filepath: string): ValidationResult {
