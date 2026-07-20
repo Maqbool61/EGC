@@ -17,12 +17,12 @@ shopt -s nullglob
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # Locate the EGC repo root by walking up from SCRIPT_DIR to find the marker
-# file (VERSION). This keeps the script working even when it has been copied
+# file (agent.yaml). This keeps the script working even when it has been copied
 # into a target project's .codebuddy/ directory.
 find_repo_root() {
     local dir="$(dirname "$SCRIPT_DIR")"
     # First try the parent of SCRIPT_DIR (original layout: .codebuddy/ lives in repo root)
-    if [ -f "$dir/VERSION" ] && [ -d "$dir/commands" ] && [ -d "$dir/agents" ]; then
+    if [ -f "$dir/agent.yaml" ] && [ -d "$dir/commands" ] && [ -d "$dir/agents" ]; then
         echo "$dir"
         return 0
     fi
